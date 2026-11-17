@@ -1,0 +1,38 @@
+"""Generate a dependency-free fixed-version QR renderer and reference test vector.
+Layout comes from ReportLab qrencoder; QR code uses version 10, EC-L, byte mode,
+mask 0. Secret invitation values are never inputs to this generator.
+"""
+import json
+from pathlib import Path
+from reportlab.graphics.barcode import qrencoder as qr
+q=qr.QRCode(10,qr.QRErrorCorrectLevel.L)
+q.addData(qr.QR8bitByte('reference'))
+q.mapData=lambda data,mask: None
+q.makeImpl(False,0)
+for col,row in q.dataPosIterator():q.modules[row][col]=None
+base=[''.join('.' if n is None else '1' if n else '0' for n in row)for row in q.modules]
+code='''// QR version 10-L, byte mode, mask 0. Standard module layout generated using
+// ReportLab qrencoder (Kazuhiko Arase, Sam Curren, Open End AB).
+const BASE = __BASE__;
+const EXP=new Uint16Array(512),LOG=new Uint16Array(256);
+let v=1;for(let i=0;i<255;i++){EXP[i]=v;LOG[v]=i;v<<=1;if(v&256)v^=0x11d}for(let i=255;i<512;i++)EXP[i]=EXP[i-255];
+const mul=(a,b)=>a&&b?EXP[LOG[a]+LOG[b]]:0;
+function ecc(data,n){let g=[1];for(let i=0;i<n;i++){const h=Array(g.length+1).fill(0);for(let j=0;j<g.length;j++){h[j]^=g[j];h[j+1]^=mul(g[j],EXP[i])}g=h}const raw=[...data,...Array(n).fill(0)];for(let i=0;i<data.length;i++){const c=raw[i];if(c)for(let j=0;j<g.length;j++)raw[i+j]^=mul(g[j],c)}return raw.slice(-n)}
+export function qrMatrix(text){
+ const data=[...new TextEncoder().encode(text)];if(data.length>271)throw Error('分享链接过长，无法生成二维码');
+ const bits=[],put=(v,n)=>{for(let i=n-1;i>=0;i--)bits.push((v>>>i)&1)};
+ put(4,4);put(data.length,16);data.forEach(x=>put(x,8));for(let i=0;i<Math.min(4,274*8-bits.length);i++)bits.push(0);while(bits.length%8)bits.push(0);
+ const raw=[];for(let i=0;i<bits.length;i+=8)raw.push(bits.slice(i,i+8).reduce((a,b)=>a*2+b,0));for(let i=0;raw.length<274;i++)raw.push(i%2?0x11:0xec);
+ const lengths=[68,68,69,69],blocks=[],errors=[];let offset=0;for(const len of lengths){const b=raw.slice(offset,offset+len);blocks.push(b);errors.push(ecc(b,18));offset+=len}
+ const interleaved=[];for(let i=0;i<69;i++)for(const b of blocks)if(i<b.length)interleaved.push(b[i]);for(let i=0;i<18;i++)for(const e of errors)interleaved.push(e[i]);
+ const matrix=BASE.map(row=>[...row].map(v=>v==='.'?null:v==='1'));let bi=0,up=true;
+ for(let col=56;col>0;col-=2){if(col===6)col--;for(let r=0;r<57;r++){const row=up?56-r:r;for(let j=0;j<2;j++){const c=col-j;if(matrix[row][c]===null){const bit=bi<interleaved.length*8?((interleaved[bi>>>3]>>>(7-(bi%8)))&1):0;matrix[row][c]=!!(bit^((row+c)%2===0?1:0));bi++}}}up=!up}
+ return matrix;
+}
+export function qrSvg(text){const m=qrMatrix(text);let d='';for(let y=0;y<m.length;y++)for(let x=0;x<m.length;x++)if(m[y][x])d+=`M${x+4} ${y+4}h1v1h-1z`;return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 65 65" width="1040" height="1040" role="img" aria-label="工作台内部专用二维码" shape-rendering="crispEdges"><rect width="65" height="65" fill="white"/><path d="${d}" fill="#55405f"/></svg>`}
+'''
+Path('src/qr.js').write_text(code.replace('__BASE__',json.dumps(base,separators=(',',':'))))
+t='https://example.com/#access=test-value'
+r=qr.QRCode(10,qr.QRErrorCorrectLevel.L);r.addData(qr.QR8bitByte(t));r.makeImpl(False,0)
+Path('tests/qr-reference.json').write_text(json.dumps({'text':t,'matrix':r.modules},separators=(',',':')))
+print('QR renderer and independent reference vector generated')

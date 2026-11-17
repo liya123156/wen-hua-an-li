@@ -1,0 +1,1 @@
+export const CONFIG = {"siteUrl":"https://liya-culture-case-hub.able-skink-6593.chatgpt.site","supabaseUrl":"https://axnadxkfuemmktffcehb.supabase.co","publishableKey":"sb_publishable_-uMAKPMYQ9vGKAHcuLQrYA_6Xzguny5"};

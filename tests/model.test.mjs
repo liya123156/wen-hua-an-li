@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import{readFileSync}from'node:fs';
+import{analyze,parsePaste,recommend,campaignRange,validate,THEMES,STORES}from'../src/model.js';
+import{qrMatrix}from'../src/qr.js';
+const body='11月6日，一位顾客临时提出看房需求，但原先预约的房源无法按时开放。顾客带着家人从外地赶来，当天只有两个小时，面对时间紧和信息不完整的问题，测试伙伴没有先作保证，而是主动询问家庭成员的需求，重新确认预算、通勤和户型的优先顺序。随后，他逐一联系相关维护人，核实可看时间，整理符合需求的三个备选方案，并向顾客如实说明每个方案的限制。为了让大家减少等待，他提前协调路线，安排同事对接入场手续，自己再次核对资料与看房条件。到了现场，他耐心倾听顾客对采光和动线的反馈，记录关键问题，当天联系业主确认后逐条回复，避免信息差影响顾客判断。第二天，他把所有核实结果整理为对比表，向顾客说明各套房源与家庭需求之间的对应关系，也将本次服务流程分享给组内伙伴。最终，顾客顺利完成当天看房并反馈安排很周到，原本担心的时间冲突得到解决。小组复盘时，大家采纳了提前核实时间、分工准备资料和及时记录反馈的方法，把尊重需求与专业交付落实为可重复使用的服务流程。';
+const base={id:'one',cycle:'2026-11',store:'黄浦滨江店',team:'A组',nominee:'测试伙伴',joined_on:'2025-01-02',recommender:'测试推荐人',author:'测试撰写人',event_on:'2026-11-06',theme:'顾客至上',behavior:'从顾客全局思考并主动反馈、解决问题',title:'测试案例',body,created_at:'2026-11-17T01:00:00Z',reference_note:'测试见证人'};
+test('campaign period spans previous month and year boundary',()=>{assert.deepEqual(campaignRange('2026-11'),{start:'2026-10-20',end:'2026-11-20'});assert.deepEqual(campaignRange('2027-01'),{start:'2026-12-20',end:'2027-01-20'})});
+test('all seven supplied values have positive and negative standards and 21 stores',()=>{assert.equal(THEMES.length,7);assert.equal(STORES.length,21);assert.ok(THEMES.every(t=>t.yes.length>=4&&t.no.length>=4&&t.meaning))});
+test('existing case template preserves body and identifies metadata',()=>{const raw=`文化主题：顾客至上\n对应文化行为点：理解需求\n被推荐人：黄浦滨江店A组测试伙伴\n被推荐人入职时间：2025年1月2日\n推荐人：测试推荐人\n案例正文（≥300字）：\n${body}`;const p=parsePaste(raw);assert.equal(p.body,body);assert.equal(p.nominee,'测试伙伴');assert.equal(p.store,'黄浦滨江店');assert.equal(p.team,'A组');assert.equal(p.joined_on,'2025-01-02')});
+test('concrete story gets grounded standard evidence and qualifies',()=>{const a=analyze(base);assert.ok(a.eligible,JSON.stringify(a));assert.ok(a.standardEvidence.length);for(const e of a.standardEvidence)assert.ok(body.includes(e.evidence));assert.equal(validate(base).length,0)});
+test('long generic praise does not qualify',()=>{const c={...base,body:'测试伙伴认真负责，工作很好，值得大家学习。'.repeat(30)};assert.equal(analyze(c).eligible,false);assert.deepEqual(recommend([c],'顾客至上'),[])});
+test('recommendations never pad empty themes or exceed requested cap',()=>{const cases=Array.from({length:5},(_,i)=>({...base,id:'case-'+i,nominee:'测试伙伴'+i}));assert.equal(recommend(cases,'顾客至上',3).length,3);assert.equal(recommend(cases,'顾客至上',1).length,1);assert.equal(recommend(cases,'诚信求真',3).length,0)});
+test('same event duplicate does not occupy multiple slots',()=>{assert.equal(recommend([base,{...base,id:'duplicate'}],'顾客至上',3).length,1)});
+test('out-of-period cases require correction',()=>{const c={...base,event_on:'2026-10-19'};assert.equal(analyze(c).eligible,false);assert.ok(validate(c).some(e=>e.includes('2026-10-20')))});
+test('a negative behavior cue pauses recommendation pending verification',()=>{const c={...base,body:body+'主人公无视顾客需求，一味安排自己希望的看房方案。'};const a=analyze(c);assert.ok(a.conflicts.length);assert.equal(a.eligible,false)});
+test('QR matrix matches independent ReportLab version 10-L reference exactly',()=>{const ref=JSON.parse(readFileSync(new URL('./qr-reference.json',import.meta.url)));assert.deepEqual(qrMatrix(ref.text),ref.matrix)});
