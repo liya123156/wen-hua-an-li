@@ -24,13 +24,13 @@ export function campaignRange(cycle){
 const has = (text,words) => words.some(w=>text.includes(w));
 const uniqueHits = (text,words) => words.filter(w=>text.includes(w));
 export function analyze(c){
-  const body=String(c.body||'').trim(), chars=countWords(body), ss=sentences(body), theme=THEMES.find(t=>t.name===c.theme);
+  const body=parsePaste(c.body).body||String(c.body||'').trim(), chars=countWords(body), ss=sentences(body), theme=THEMES.find(t=>t.name===c.theme);
   const range=campaignRange(c.cycle);
   const inRange=!!c.event_on&&c.event_on>=range.start&&c.event_on<=range.end;
   const context=ss.find(s=>has(s,['当时','当天','因为','由于','遇到','面对','原本','背景','问题','困难','需求','发现','担心','时间紧','临时','希望']));
   const actionWords=theme?.actions||[];
   const actionEvidence=ss.filter(s=>uniqueHits(s,actionWords).length>0&&countWords(s)>=14);
-  const resultEvidence=ss.filter(s=>has(s,['最终','结果','反馈','因此','成功','解决了','完成了','得以','避免了','提升了','减少了','认可','感谢','顺利','采纳','学会','满意','恢复','节省','获得']));
+  const resultEvidence=ss.filter(s=>countWords(s)>=14&&!/[？?]/.test(s)&&has(s,['最终','结果','反馈','因此','成功','解决了','完成了','得以','避免了','提升了','减少了','认可','感谢','顺利','采纳','学会','满意','恢复','节省','获得']));
   const themeHits=uniqueHits(body,theme?.words||[]);
   const standardEvidence=(theme?.yes||[]).map(([label,words])=>({label,evidence:ss.find(s=>countWords(s)>=14&&has(s,words)&&has(s,actionWords))||''})).filter(x=>x.evidence);
   const conflicts=ss.filter(s=>(theme?.flags||[]).some(w=>s.includes(w))&&!has(s,['没有','并未','不再','避免','拒绝这种','纠正','反对','发现','曾经','过去','之前']));
@@ -46,17 +46,22 @@ export function analyze(c){
   let total=Object.values(scores).reduce((a,b)=>a+b,0);
   if(repetitive) total=Math.min(total,35);
   const suggestions=[];
-  if(chars<300) suggestions.push(`正文目前${chars}字，需补充至少${300-chars}字真实细节，达到300字要求。`);
+  if(!c.nominee?.trim()) suggestions.push('请在原文补充主人公姓名及其在事件中的具体职责，方便月会视频呈现。');
   if(!context) suggestions.push('补充事件背景：当时遇到了什么具体问题，涉及谁，为什么需要主人公作出这个选择？');
   if(actionEvidence.length<2) suggestions.push(`补充关键行动：围绕“${c.behavior||theme?.hint||c.theme||'文化行为'}”，按发生顺序写出主人公具体怎么做、怎么沟通。`);
   if(!resultEvidence.length) suggestions.push('补充实际结果：问题最后如何处理？请写出顾客或伙伴的真实反馈；没有数字也可写具体变化。');
   if(themeHits.length<2) suggestions.push(`说明“${c.theme||'所选主题'}”的行为依据，结合原事件补充行动和选择；不要只增加价值观词语。`);
-  if(!c.behavior?.trim()) suggestions.push('补充对应文化行为点，用一句话写清最值得认可的行为。');
-  if(!inRange) suggestions.push(`核对发生日期：本期案例周期为${range.start}至${range.end}。`);
+  if(!c.behavior?.trim()&&!standardEvidence.length) suggestions.push('结合正向准则，在原文讲清最值得学习的文化行为。');
+  if(!c.event_on) suggestions.push('补充事件发生时间，方便核实背景与准备月会采访。');
+  else if(!inRange) suggestions.push(`核对事件所属征集月份与发生日期，本期周期为${range.start}至${range.end}。`);
   if(repetitive) suggestions.push('正文存在较多重复表达，请保留真实事件，补足不同的行动细节与结果。');
   if(standardEvidence.length===0) suggestions.push(`请围绕正式准则“${theme?.yes?.[0]?.[0]||'正向文化行为'}”，补充主人公的具体行动与当时选择。`);
   if(conflicts.length) suggestions.push('原文出现与负向行为相关的线索。请核实行为主体、实际经过和后续处理；核实前暂不进入自动推荐。');
-  const eligible=chars>=300&&inRange&&themeHits.length>=2&&standardEvidence.length>=1&&actionEvidence.length>=2&&resultEvidence.length>0&&!repetitive&&conflicts.length===0&&total>=68;
+  const choice=actionEvidence.find(s=>has(s,['主动','坚持','提出','选择','决定','额外','仍然','没有','并未','即使','为此','放弃']))||'';
+  const video={person:!!c.nominee?.trim(),context:context||'',choice,actions:actionEvidence.slice(0,3),outcome:resultEvidence[0]||''};
+  video.ready=!!(video.person&&video.context&&video.choice&&video.actions.length>=2&&video.outcome);
+  if(!choice) suggestions.push('补充主人公的关键选择与动机：为什么主动这样做、承担了什么，体现哪一条文化准则？');
+  const eligible=(!c.event_on||inRange)&&themeHits.length>=2&&standardEvidence.length>=1&&video.ready&&!repetitive&&conflicts.length===0&&total>=80;
   if(eligible){
     suggestions.push('向当事人或见证人核实原文所述关键行动、人物贡献和结果反馈，再确认是否进入最终名单。');
     if(!c.reference_note?.trim()) suggestions.push('补充一项可核实线索，例如见证人、反馈来源或业务记录位置。');
@@ -69,7 +74,7 @@ export function analyze(c){
   if(action) reasons.push(`行动依据：${action.slice(0,110)}`);
   if(result) reasons.push(`结果依据：${result.slice(0,110)}`);
   const summary=[context,action,result].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).join(' ').slice(0,210)||body.slice(0,150);
-  return {chars,inRange,scores,total,eligible,repetitive,summary,reasons,suggestions,actionEvidence,resultEvidence,standardEvidence,conflicts};
+  return {chars,inRange,scores,total,eligible,repetitive,summary,reasons,suggestions,actionEvidence,resultEvidence,standardEvidence,conflicts,video};
 }
 export function recommend(cases,theme,limit=3){
   const seen=new Set();
@@ -82,8 +87,8 @@ export function recommend(cases,theme,limit=3){
 export function parsePaste(raw){
   const text=String(raw||'').replace(/\r\n/g,'\n').replace(/\*\*/g,'').trim();
   const pick=labels=>{const re=new RegExp(`^(?:${labels})[：:]\\s*(.+)$`,'m');return text.match(re)?.[1]?.trim()||'';};
-  const person=pick('被推荐人|主人公'), theme=pick('文化主题|价值观主题|价值观');
-  const store=STORES.find(s=>(pick('门店|店面')||person).toLowerCase().includes(s.toLowerCase()))||'';
+  const person=pick('被推荐人|主人公'), theme=pick('推荐主题|文化主题|价值观主题|推荐价值观|价值观|主题');
+  const store=STORES.find(s=>(pick('所属门店|所属店面|门店|店面')||person).toLowerCase().includes(s.toLowerCase()))||'';
   const cleanedPerson=person.replace(store,'').replace(/^[\s·：:|—-]+/,'');
   const team=pick('组别|店组')||cleanedPerson.match(/^([A-DＡ-Ｄ]组|[^\s]{1,5}组)/)?.[0]||'';
   const nominee=cleanedPerson.replace(team,'').replace(/^[\s·：:|—-]+/,'');
@@ -93,18 +98,14 @@ export function parsePaste(raw){
   let body=text;
   const bodyMark=/^案例正文(?:[（(][^\n）)]*[）)])?\s*[：:]?\s*/m;
   if(bodyMark.test(text)) body=text.slice(text.search(bodyMark)).replace(bodyMark,'').trim();
-  else body=text.split('\n').filter(line=>! /^(文化主题|价值观主题|价值观|对应文化行为点|文化行为点|被推荐人|被推荐人入职时间|入职日期|入职时间|推荐人|撰写人|门店|店面|组别|店组|案例标题|标题|事件发生时间|案例发生时间|事件日期|发生日期|发生时间)[：:]/.test(line)).join('\n').trim();
+  else body=text.split('\n').filter(line=>! /^(推荐主题|文化主题|价值观主题|推荐价值观|价值观|主题|所属门店|所属店面|对应文化行为点|文化行为点|被推荐人|被推荐人入职时间|入职日期|入职时间|推荐人|撰写人|门店|店面|组别|店组|案例标题|标题|事件发生时间|案例发生时间|事件日期|发生日期|发生时间)[：:]/.test(line)).join('\n').trim();
   return {theme:THEMES.some(t=>t.name===theme)?theme:'',store,team,nominee,joined_on,event_on,behavior:pick('对应文化行为点|文化行为点'),recommender:pick('推荐人'),author:pick('撰写人|提交人'),title:pick('案例标题|标题'),body};
 }
 export function validate(c){
-  const e=[];
-  for(const [k,label]of Object.entries({cycle:'征集月份',store:'门店',nominee:'被推荐人',joined_on:'入职时间',recommender:'推荐人',author:'撰写人',event_on:'发生日期',theme:'文化主题',behavior:'文化行为点'}))if(!String(c[k]||'').trim())e.push(`请填写${label}`);
-  if(!STORES.includes(c.store))e.push('请选择列表中的门店');
-  if(!THEMES.some(t=>t.name===c.theme))e.push('请选择一个文化主题');
-  if(countWords(c.body)<300)e.push('正文不少于300字，请补充真实细节');
-  if(countWords(c.body)>30000)e.push('正文请控制在30000字以内');
-  const range=campaignRange(c.cycle);
-  if(c.event_on&&(c.event_on<range.start||c.event_on>range.end))e.push(`发生日期应在${range.start}至${range.end}之间`);
-  if(c.joined_on&&c.event_on&&c.joined_on>c.event_on)e.push('请核对入职时间与事件发生日期');
-  return [...new Set(e)];
+  const errors=[];
+  if(!STORES.includes(c.store))errors.push('请写清一个所属店面');
+  if(!THEMES.some(t=>t.name===c.theme))errors.push('请写清一个推荐主题');
+  if(!String(c.body||'').trim())errors.push('请粘贴案例内容');
+  if(countWords(c.body)>100000)errors.push('请先拆分为多篇案例');
+  return errors;
 }

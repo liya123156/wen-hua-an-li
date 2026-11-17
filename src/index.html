@@ -4,8 +4,8 @@
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#8b68bd"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
   <title>文化案例工作台 · 丽兹行上海</title>
-  <meta name="description" content="发现身边的优秀，让文化被看见。文化案例收集、案例库与主题评选。">
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css">
+  <meta name="description" content="发现身边的优秀，让文化被看见。文化案例收集、案例库、主题评选与门店统计。">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=2">
 </head>
 <body>
 <aside class="sidebar">
@@ -15,6 +15,7 @@
     <button class="nav-item active" data-view="submit"><span class="nav-number">01</span><span>粘贴案例<small>发现与记录优秀</small></span><span class="nav-arrow">↗</span></button>
     <button class="nav-item" data-view="library"><span class="nav-number">02</span><span>案例库<small>让好行为被看见</small></span><span class="nav-arrow">↗</span></button>
     <button class="nav-item" data-view="selection"><span class="nav-number">03</span><span>案例评选<small>寻找文化的榜样</small></span><span class="nav-arrow">↗</span></button>
+    <button class="nav-item nav-counts" data-view="counts"><span class="nav-number">04</span><span><span class="counts-label-full">各店提交数量一览表</span><span class="counts-label-short">提交数量</span><small>按店面、主题统计</small></span><span class="nav-arrow">↗</span></button>
   </nav>
   <div class="side-note"><span class="sparkle">✦</span><p>每一份认真付出<br>都值得被看见</p><small>7大文化主题 · 21家门店</small></div>
   <div class="side-bottom"><span class="status-dot"></span><span id="sync-status">正在连接案例库</span></div>
@@ -24,44 +25,28 @@
   <div class="main-inner">
     <section id="view-submit" class="page-view">
       <div class="hero"><div><p class="eyebrow">CULTURE IN ACTION</p><h1>让优秀被看见<span class="hero-star">✧</span><br><span>让文化持续发生</span></h1><p class="hero-description">记录一个真实的故事，推荐一位值得学习的伙伴。</p><div class="hero-tags"><span>真实场景</span><i>—</i><span>具体行动</span><i>—</i><span>实际价值</span></div></div><div class="hero-art" aria-hidden="true"><div class="art-orbit"></div><div class="art-diamond d1">✦</div><div class="art-diamond d2">✧</div><div class="art-circle">GOOD<br><b>ACTIONS</b><br><small>DESERVE TO BE SEEN</small></div><div class="art-dot dot1"></div><div class="art-dot dot2"></div></div></div>
-      <div class="campaign-line"><span class="tiny-icon">◷</span><span id="campaign-dates"></span><span class="campaign-sep">·</span><span>每店≥3篇</span><span class="campaign-sep">·</span><span>单篇正文≥300字</span></div>
-      <div class="submit-layout"><form id="case-form" novalidate>
-        <article class="panel paste-panel"><div class="panel-heading"><div><p class="section-kicker">STEP 01 · 记录故事</p><h2 id="form-title">粘贴你的文化案例</h2></div><span class="soft-badge">原有模板可直接粘贴</span></div>
-          <p class="muted">把已经写好的案例粘贴在下方，点击「整理字段」，再确认主题、门店与人员信息。</p>
-          <label class="sr-only" for="body">案例正文或完整案例模板</label><textarea id="body" name="body" rows="12" maxlength="35000" placeholder="文化主题：&#10;对应文化行为点：&#10;被推荐人：XX店XX组XXX&#10;被推荐人入职时间：&#10;推荐人：&#10;&#10;案例正文：&#10;当时发生了什么？主人公具体做了什么？最终带来了什么价值？&#10;&#10;也可以直接粘贴完整故事。"></textarea>
-          <div class="textarea-footer"><div><span id="word-count">0</span><span class="muted"> / 300字起</span><span id="draft-status" class="draft-hint"></span></div><button type="button" class="button secondary small" id="parse">✧ 整理字段</button></div>
-        </article>
-        <article class="panel fields-panel"><div class="panel-heading"><div><p class="section-kicker">STEP 02 · 确认信息</p><h2>让故事找到对应的伙伴</h2></div></div>
-          <div class="form-grid">
-            <label>文化主题 <b>*</b><select name="theme" id="form-theme" required><option value="">请选择文化主题</option></select></label>
-            <label>所属门店 <b>*</b><select name="store" id="form-store" required><option value="">请选择门店</option></select></label>
-            <label class="span-2">对应文化行为点 <b>*</b><input name="behavior" id="behavior" maxlength="500" placeholder="选择下方行为准则，或用一句话写清具体行为" required><div id="behavior-options" class="behavior-options"></div></label>
-            <label>被推荐人 <b>*</b><input name="nominee" maxlength="100" placeholder="填写伙伴姓名" required></label>
-            <label>所在组别<input name="team" maxlength="100" placeholder="例如：A组 / XX经理组"></label>
-            <label>被推荐人入职时间 <b>*</b><input type="date" name="joined_on" required></label>
-            <label>事件发生日期 <b>*</b><input type="date" name="event_on" id="event-on" required></label>
-            <label>推荐人 <b>*</b><input name="recommender" maxlength="100" placeholder="填写推荐人姓名" required></label>
-            <label>撰写人 / 提交人 <b>*</b><input name="author" maxlength="100" placeholder="后续补充由谁负责" required></label>
-            <label class="span-2">案例标题 <span class="optional">选填</span><input name="title" maxlength="160" placeholder="用一句话点出故事中的优秀行为"></label>
-            <label class="span-2">可核实线索 <span class="optional">选填</span><textarea name="reference_note" rows="2" maxlength="2000" placeholder="例如：见证人、顾客反馈来源或业务记录位置"></textarea></label>
-          </div>
-          <div id="form-errors" class="error-box" role="alert" hidden></div><div class="submit-footer"><p class="muted">提交后统一进入案例库，可通过专属修改链接继续完善。</p><div class="submit-buttons"><button type="button" class="button ghost" id="reset-form">新建一篇</button><button type="submit" class="button primary" id="submit-button">提交案例 <span>↗</span></button></div></div>
-        </article>
-      </form>
-      <aside class="guide"><article class="panel guide-card"><span class="guide-icon">✧</span><h3>好故事，来自真实行动</h3><p class="muted">不需要华丽的文字，把这些细节讲清楚，就很有力量。</p><div class="guide-step"><span>01</span><div><b>真实场景</b><p>当时遇到了什么问题？<br>为什么需要作出选择？</p></div></div><div class="guide-step"><span>02</span><div><b>具体行动</b><p>主人公怎么想、怎么做？<br>有哪些值得记住的细节？</p></div></div><div class="guide-step"><span>03</span><div><b>实际结果</b><p>问题如何解决？<br>给顾客或伙伴带来什么变化？</p></div></div></article><article class="panel theme-guide"><p class="section-kicker">7大文化主题</p><div id="theme-list"></div></article></aside></div>
+      <div class="campaign-line"><span class="tiny-icon">◷</span><span id="campaign-dates"></span><span class="campaign-sep">·</span><span>写清店面与推荐主题，提交即入库</span></div>
+      <div class="submission-heading"><div><h2>直接粘贴案例</h2><p class="muted">原文写清「店面」和「推荐主题」即可。可连续新建多篇，一篇提交一次。</p></div><button class="button secondary" id="add-case">＋ 新建一篇</button></div>
+      <div class="submission-helper"><span>例如：店面：黄浦滨江店　推荐主题：拥抱变化</span><details><summary>查看七个推荐主题</summary><p>感恩利他 · 诚信求真 · 顾客至上 · 尊重伙伴 · 协作共创 · 拥抱变化 · 专业卓越</p></details></div>
+      <div id="submission-list" class="submission-list"></div>
+      <button class="button secondary add-case-bottom" id="add-case-bottom">＋ 继续新建一篇</button>
     </section>
     <section id="view-library" class="page-view" hidden>
       <div class="page-heading"><div><p class="eyebrow">OUR CULTURE STORIES</p><h1>案例库<span class="heading-dot">.</span></h1><p class="muted">在真实的人和事里，看见文化的力量。</p></div><button class="button secondary" id="export">↓ 导出案例</button></div>
       <div class="stat-grid" id="stats"></div>
       <div class="panel filter-panel"><div class="filter-top"><div class="search-wrap"><span>⌕</span><input id="search" type="search" placeholder="搜索伙伴、标题或故事内容" aria-label="搜索案例"></div><select id="store-filter" aria-label="按门店筛选"><option value="">全部门店</option></select><select id="sort" aria-label="排序方式"><option value="latest">最近提交</option><option value="quality">初筛参考分</option></select></div><div id="theme-filter" class="theme-filters"></div></div>
-      <div class="list-caption"><span id="list-count"></span><button class="text-button" id="progress-toggle">查看21店收集进度 ↗</button></div>
-      <div id="store-progress" class="panel progress-panel" hidden></div><div id="case-grid" class="case-grid"></div>
+      <div class="list-caption"><span id="list-count"></span></div><div id="case-grid" class="case-grid"></div>
     </section>
     <section id="view-selection" class="page-view" hidden>
       <div class="page-heading"><div><p class="eyebrow">CULTURE SPOTLIGHT</p><h1>寻找值得学习的榜样<span class="heading-dot">.</span></h1><p class="muted">按七大价值观集中比较，优先关注有行动、有价值的故事。</p></div><button class="button secondary" id="selection-export">↓ 导出评选参考</button></div>
-      <div class="selection-note"><span class="note-icon">✧</span><div><b>以正式价值观解读与行为准则为依据</b><p>每个主题推荐1—3篇达到条件的候选；不足时保留空缺。文本辅助初筛会列出原文依据与修改建议，真实性及最终获奖由负责人确认。</p></div><a href="./value-standard.png" target="_blank" rel="noopener" class="text-button">查看标准原图 ↗</a></div>
+      <div class="selection-note"><span class="note-icon">✧</span><div><b>以正式价值观解读与行为准则为依据</b><p>每个主题推荐最多3篇月会视频候选，重点检核人物、场景、关键选择、行动与实际影响；质量不足时保留空缺。修改建议可一键复制给撰写人或BP。最终入选由负责人核实确认。</p></div><a href="./value-standard.png" target="_blank" rel="noopener" class="text-button">查看标准原图 ↗</a></div>
       <div class="selection-toolbar"><div id="selection-theme-filter" class="theme-filters"></div><label class="recommend-limit">每主题最多 <select id="recommend-limit" aria-label="每主题推荐数量"><option value="3">3篇</option><option value="2">2篇</option><option value="1">1篇</option></select></label></div>
       <div id="selection-results"></div>
+    </section>
+    <section id="view-counts" class="page-view" hidden>
+      <div class="page-heading"><div><p class="eyebrow">SUBMISSION OVERVIEW</p><h1>各店提交数量一览表<span class="heading-dot">.</span></h1><p class="muted">按当前征集月份统计，提交成功即计入篇数。</p></div><button class="button secondary" id="copy-counts">复制表格</button></div>
+      <div id="counts-caption" class="counts-caption"></div>
+      <div class="panel counts-panel"><div class="table-scroll"><table id="counts-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
     </section>
     <footer class="page-footer">丽兹行 · 上海 <span>让文化在日常中持续发生</span><span>向上向善，共同绽放 ✧</span></footer>
   </div>
@@ -70,5 +55,5 @@
 <dialog id="share-dialog" class="share-dialog"><button class="close-dialog" aria-label="关闭">×</button><p class="eyebrow">SHARE GOOD ACTIONS</p><h2>一起发现身边的优秀</h2><p class="muted">将专用链接或二维码分享给门店伙伴，打开即可提交。</p><div id="qr-code" class="qr-code"></div><p class="qr-caption">文化案例工作台 · 内部协作入口</p><button class="button primary full" id="copy-link">复制专用链接 ↗</button><button class="button secondary full" id="download-qr">下载二维码</button><p class="share-tip">专用入口可查看案例，请按内部协作范围分享。</p></dialog>
 <dialog id="access-dialog" class="access-dialog"><div class="access-symbol">✧</div><p class="eyebrow">CULTURE IN ACTION</p><h2>欢迎来到文化案例工作台</h2><p class="muted">请使用负责人分享的内部专用链接，<br>或粘贴专用链接 / 访问码进入。</p><form id="access-form"><label class="sr-only" for="access-input">内部专用链接或访问码</label><input id="access-input" type="password" placeholder="粘贴专用链接或访问码" autocomplete="off"><p id="access-error" class="error-text" role="alert"></p><button class="button primary full" type="submit">进入工作台 ↗</button></form><button class="button ghost full" id="access-back">返回工作台</button></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<script type="module" src="./app.js"></script>
+<script type="module" src="./app.js?v=2"></script>
 </body></html>
