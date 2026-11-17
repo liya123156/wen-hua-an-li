@@ -5,7 +5,7 @@
   <meta name="theme-color" content="#8b68bd"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
   <title>文化案例工作台 · 丽兹行上海</title>
   <meta name="description" content="发现身边的优秀，让文化被看见。文化案例收集、案例库、主题评选与门店统计。">
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=2">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=4">
 </head>
 <body>
 <aside class="sidebar">
@@ -39,21 +39,22 @@
     </section>
     <section id="view-selection" class="page-view" hidden>
       <div class="page-heading"><div><p class="eyebrow">CULTURE SPOTLIGHT</p><h1>寻找值得学习的榜样<span class="heading-dot">.</span></h1><p class="muted">按七大价值观集中比较，优先关注有行动、有价值的故事。</p></div><button class="button secondary" id="selection-export">↓ 导出评选参考</button></div>
-      <div class="selection-note"><span class="note-icon">✧</span><div><b>以正式价值观解读与行为准则为依据</b><p>每个主题推荐最多3篇月会视频候选，重点检核人物、场景、关键选择、行动与实际影响；质量不足时保留空缺。修改建议可一键复制给撰写人或BP。最终入选由负责人核实确认。</p></div><a href="./value-standard.png" target="_blank" rel="noopener" class="text-button">查看标准原图 ↗</a></div>
+      <div class="selection-note"><span class="note-icon">✧</span><div><b>以正式价值观解读与行为准则为依据</b><p>每个主题推荐最多3篇月会视频候选，重点检核人物、场景、关键选择、行动与实际影响；质量不足时保留空缺。店总评价与本店推荐标记作为参考，不填写也不扣分；内容质量仍需达标。修改建议可一键复制给撰写人或BP。最终入选由负责人核实确认。</p></div><a href="./value-standard.png" target="_blank" rel="noopener" class="text-button">查看标准原图 ↗</a></div>
       <div class="selection-toolbar"><div id="selection-theme-filter" class="theme-filters"></div><label class="recommend-limit">每主题最多 <select id="recommend-limit" aria-label="每主题推荐数量"><option value="3">3篇</option><option value="2">2篇</option><option value="1">1篇</option></select></label></div>
       <div id="selection-results"></div>
     </section>
     <section id="view-counts" class="page-view" hidden>
-      <div class="page-heading"><div><p class="eyebrow">SUBMISSION OVERVIEW</p><h1>各店提交数量一览表<span class="heading-dot">.</span></h1><p class="muted">按当前征集月份统计，提交成功即计入篇数。</p></div><button class="button secondary" id="copy-counts">复制表格</button></div>
+      <div class="counts-hero"><div><p class="eyebrow">GOOD STORIES, GROW TOGETHER</p><h1>每一份优秀，都值得被看见<span class="heading-heart">♡</span></h1><p>各店提交数量一览 · 每店至少3篇，一起发现身边温暖的行动。</p></div><div class="heart-friend" aria-hidden="true"><span>♥</span><i>◡</i><b>♡</b></div></div>
+      <div class="counts-actions"><div><h2>各店提交数量一览表</h2><p class="muted">按征集月份统计 · 粉色合计提醒待补齐 · 小屏可左右滑动查看全部主题</p></div><div class="counts-buttons"><button class="button primary" id="copy-counts-image">♡ 复制表格图片</button><button class="button secondary" id="download-counts-image">↓ 下载图片</button><button class="button ghost" id="copy-counts">复制表格文字</button></div></div>
       <div id="counts-caption" class="counts-caption"></div>
-      <div class="panel counts-panel"><div class="table-scroll"><table id="counts-table"><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+      <div class="panel counts-panel"><div class="table-scroll"><table id="counts-table"><caption class="sr-only">21家门店按7个文化主题的提交篇数及合计</caption><thead></thead><tbody></tbody><tfoot></tfoot></table></div></div>
+      <div class="panel reminder-panel"><div class="reminder-heading"><div><span class="reminder-icon" aria-hidden="true">💌</span><h2>给BP伙伴的提交提醒</h2><p class="muted">自动列出不足3篇的门店、当前篇数和差额，复制即可发群。</p></div><label class="deadline-field">提交截止日期<span><input type="date" id="reminder-deadline" aria-label="提交截止日期"><b>24:00前</b></span></label></div><label class="sr-only" for="reminder-message">提交提醒消息</label><textarea id="reminder-message" readonly rows="12"></textarea><div class="reminder-footer"><small>根据当前已同步的数据生成，发送前可点击右上角刷新。</small><button class="button primary" id="copy-reminder">复制提交提醒 ↗</button></div></div>
     </section>
     <footer class="page-footer">丽兹行 · 上海 <span>让文化在日常中持续发生</span><span>向上向善，共同绽放 ✧</span></footer>
   </div>
 </main>
 <dialog id="detail-dialog" class="detail-dialog"><button class="close-dialog" aria-label="关闭">×</button><div id="detail-content"></div></dialog>
-<dialog id="share-dialog" class="share-dialog"><button class="close-dialog" aria-label="关闭">×</button><p class="eyebrow">SHARE GOOD ACTIONS</p><h2>一起发现身边的优秀</h2><p class="muted">将专用链接或二维码分享给门店伙伴，打开即可提交。</p><div id="qr-code" class="qr-code"></div><p class="qr-caption">文化案例工作台 · 内部协作入口</p><button class="button primary full" id="copy-link">复制专用链接 ↗</button><button class="button secondary full" id="download-qr">下载二维码</button><p class="share-tip">专用入口可查看案例，请按内部协作范围分享。</p></dialog>
-<dialog id="access-dialog" class="access-dialog"><div class="access-symbol">✧</div><p class="eyebrow">CULTURE IN ACTION</p><h2>欢迎来到文化案例工作台</h2><p class="muted">请使用负责人分享的内部专用链接，<br>或粘贴专用链接 / 访问码进入。</p><form id="access-form"><label class="sr-only" for="access-input">内部专用链接或访问码</label><input id="access-input" type="password" placeholder="粘贴专用链接或访问码" autocomplete="off"><p id="access-error" class="error-text" role="alert"></p><button class="button primary full" type="submit">进入工作台 ↗</button></form><button class="button ghost full" id="access-back">返回工作台</button></dialog>
+<dialog id="share-dialog" class="share-dialog"><button class="close-dialog" aria-label="关闭">×</button><p class="eyebrow">SHARE GOOD ACTIONS</p><h2>一起发现身边的优秀</h2><p class="muted">将链接或二维码分享给门店伙伴，打开即可提交，无需访问码。</p><div id="qr-code" class="qr-code"></div><p class="qr-caption">文化案例工作台 · 内部协作入口</p><button class="button primary full" id="copy-link">复制工作台链接 ↗</button><button class="button secondary full" id="download-qr">下载二维码</button><p class="share-tip">一起记录优秀，让值得学习的行动被看见。</p></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<script type="module" src="./app.js?v=2"></script>
+<script type="module" src="./app.js?v=4"></script>
 </body></html>

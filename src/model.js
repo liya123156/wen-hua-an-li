@@ -12,7 +12,7 @@ export const STORES = [
   '仁恒河滨城店','碧云店','御翠园店','浦东别墅旗舰店','星河湾店','陆家嘴金融中心店','陆家嘴旗舰店','陆家嘴滨江店','顶级豪宅部',
   '嘉御庭公馆店','尚海湾店','徐汇滨江店','徐汇一店','融创滨江壹号院店','长宁古北店','Hmall中心店','Hmall旗舰店','黄浦滨江店','新天地一店','新天地二店','复兴香园店'
 ];
-export const PUBLIC_FIELDS = 'id,cycle,title,theme,behavior,store,team,nominee,joined_on,recommender,author,event_on,body,reference_note,created_at,updated_at';
+export const PUBLIC_FIELDS = 'id,cycle,title,theme,behavior,store,team,nominee,joined_on,recommender,author,event_on,body,reference_note,manager_review,created_at,updated_at';
 export const countWords = text => [...String(text||'').replace(/\s/g,'')].length;
 export const sentences = text => String(text||'').split(/(?<=[。！？；!?\n])/).map(s=>s.trim()).filter(Boolean);
 export function campaignRange(cycle){
@@ -23,6 +23,15 @@ export function campaignRange(cycle){
 }
 const has = (text,words) => words.some(w=>text.includes(w));
 const uniqueHits = (text,words) => words.filter(w=>text.includes(w));
+export function managerReference(value){
+  const text=String(value||'').trim();
+  const needsVerification=/真实性存疑|事实尚未核实|事实未核实|贡献归属存疑/.test(text);
+  const negative=/暂不推荐|不予推荐|不推荐|不建议入选|暂缓推荐|待核实/.test(text)||needsVerification;
+  const match=text.match(/店总推荐\s*[:：]?\s*([12一二])|本店推荐第\s*([12一二])\s*篇/);
+  const rank=negative?0:match?(/[1一]/.test(match[1]||match[2])?1:2):0;
+  const priority=negative?0:rank===1?6:rank===2?4:/推荐入选|重点推荐|建议入选|建议优先推荐/.test(text)?2:0;
+  return {present:!!text,rank,priority,needsVerification,label:needsVerification?'店总提示需核实':rank?`店总推荐${rank}`:priority?'店总推荐':'店总评价'};
+}
 export function analyze(c){
   const body=parsePaste(c.body).body||String(c.body||'').trim(), chars=countWords(body), ss=sentences(body), theme=THEMES.find(t=>t.name===c.theme);
   const range=campaignRange(c.cycle);
@@ -61,7 +70,9 @@ export function analyze(c){
   const video={person:!!c.nominee?.trim(),context:context||'',choice,actions:actionEvidence.slice(0,3),outcome:resultEvidence[0]||''};
   video.ready=!!(video.person&&video.context&&video.choice&&video.actions.length>=2&&video.outcome);
   if(!choice) suggestions.push('补充主人公的关键选择与动机：为什么主动这样做、承担了什么，体现哪一条文化准则？');
-  const eligible=(!c.event_on||inRange)&&themeHits.length>=2&&standardEvidence.length>=1&&video.ready&&!repetitive&&conflicts.length===0&&total>=80;
+  const manager=managerReference(c.manager_review);
+  if(manager.needsVerification)suggestions.push('店总评价提示事实或贡献归属仍需核实，请先与店总、当事人补清事实，再参与视频候选推荐。');
+  const eligible=(!c.event_on||inRange)&&themeHits.length>=2&&standardEvidence.length>=1&&video.ready&&!repetitive&&conflicts.length===0&&!manager.needsVerification&&total>=80;
   if(eligible){
     suggestions.push('向当事人或见证人核实原文所述关键行动、人物贡献和结果反馈，再确认是否进入最终名单。');
     if(!c.reference_note?.trim()) suggestions.push('补充一项可核实线索，例如见证人、反馈来源或业务记录位置。');
@@ -73,14 +84,15 @@ export function analyze(c){
   if(standardEvidence.length) reasons.push(`对应正向准则：${standardEvidence.map(x=>x.label).slice(0,2).join('；')}`);
   if(action) reasons.push(`行动依据：${action.slice(0,110)}`);
   if(result) reasons.push(`结果依据：${result.slice(0,110)}`);
+  if(manager.priority)reasons.push(`店面参考：${manager.label}。在达到内容质量要求的基础上优先复核。`);
   const summary=[context,action,result].filter(Boolean).filter((x,i,a)=>a.indexOf(x)===i).join(' ').slice(0,210)||body.slice(0,150);
-  return {chars,inRange,scores,total,eligible,repetitive,summary,reasons,suggestions,actionEvidence,resultEvidence,standardEvidence,conflicts,video};
+  return {chars,inRange,scores,total,eligible,repetitive,summary,reasons,suggestions,actionEvidence,resultEvidence,standardEvidence,conflicts,video,manager};
 }
 export function recommend(cases,theme,limit=3){
   const seen=new Set();
   return cases.filter(c=>c.theme===theme).map(c=>({...c,assessment:analyze(c)}))
     .filter(c=>c.assessment.eligible)
-    .sort((a,b)=>b.assessment.total-a.assessment.total||(a.created_at||'').localeCompare(b.created_at||''))
+    .sort((a,b)=>(b.assessment.total+b.assessment.manager.priority)-(a.assessment.total+a.assessment.manager.priority)||(a.created_at||'').localeCompare(b.created_at||''))
     .filter(c=>{const k=`${c.store}|${c.nominee}|${c.event_on}|${c.body.replace(/\s/g,'')}`;if(seen.has(k))return false;seen.add(k);return true;})
     .slice(0,Math.min(3,Math.max(1,limit)));
 }

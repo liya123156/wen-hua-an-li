@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import{readFileSync}from'node:fs';
-import{analyze,parsePaste,recommend,campaignRange,validate,THEMES,STORES}from'../src/model.js';
+import{analyze,parsePaste,recommend,campaignRange,validate,THEMES,STORES,managerReference}from'../src/model.js';
 import{qrMatrix}from'../src/qr.js';
 const body='11月6日，一位顾客临时提出看房需求，但原先预约的房源无法按时开放。顾客带着家人从外地赶来，当天只有两个小时，面对时间紧和信息不完整的问题，测试伙伴没有先作保证，而是主动询问家庭成员的需求，重新确认预算、通勤和户型的优先顺序。随后，他逐一联系相关维护人，核实可看时间，整理符合需求的三个备选方案，并向顾客如实说明每个方案的限制。为了让大家减少等待，他提前协调路线，安排同事对接入场手续，自己再次核对资料与看房条件。到了现场，他耐心倾听顾客对采光和动线的反馈，记录关键问题，当天联系业主确认后逐条回复，避免信息差影响顾客判断。第二天，他把所有核实结果整理为对比表，向顾客说明各套房源与家庭需求之间的对应关系，也将本次服务流程分享给组内伙伴。最终，顾客顺利完成当天看房并反馈安排很周到，原本担心的时间冲突得到解决。小组复盘时，大家采纳了提前核实时间、分工准备资料和及时记录反馈的方法，把尊重需求与专业交付落实为可重复使用的服务流程。';
 const base={id:'one',cycle:'2026-11',store:'黄浦滨江店',team:'A组',nominee:'测试伙伴',joined_on:'2025-01-02',recommender:'测试推荐人',author:'测试撰写人',event_on:'2026-11-06',theme:'顾客至上',behavior:'从顾客全局思考并主动反馈、解决问题',title:'测试案例',body,created_at:'2026-11-17T01:00:00Z',reference_note:'测试见证人'};
@@ -17,3 +17,16 @@ test('same event duplicate does not occupy multiple slots',()=>{assert.equal(rec
 test('out-of-period cases can enter the library but need correction before selection',()=>{const c={...base,event_on:'2026-10-19'};assert.equal(analyze(c).eligible,false);assert.equal(validate(c).length,0)});
 test('a negative behavior cue pauses recommendation pending verification',()=>{const c={...base,body:body+'主人公无视顾客需求，一味安排自己希望的看房方案。'};const a=analyze(c);assert.ok(a.conflicts.length);assert.equal(a.eligible,false)});
 test('QR matrix matches independent ReportLab version 10-L reference exactly',()=>{const ref=JSON.parse(readFileSync(new URL('./qr-reference.json',import.meta.url)));assert.deepEqual(qrMatrix(ref.text),ref.matrix)});
+test('missing optional manager review neither lowers quality score nor blocks selection',()=>{
+ const a=analyze(base),b=analyze({...base,manager_review:''});assert.equal(a.total,b.total);assert.equal(b.eligible,true);assert.equal(b.manager.priority,0);
+});
+test('manager top-two recommendations help rank only already qualified stories',()=>{
+ const cases=[{...base,id:'a',nominee:'伙伴甲'},{...base,id:'b',nominee:'伙伴乙',manager_review:'店总推荐2：行动具体，建议重点关注'},{...base,id:'c',nominee:'伙伴丙',manager_review:'店总推荐1：服务行动值得学习'}];
+ assert.deepEqual(recommend(cases,'顾客至上').map(c=>c.id),['c','b','a']);
+ const weak={...base,id:'weak',manager_review:'店总推荐1：重点推荐入选',body:'伙伴很认真，值得大家学习。'};
+ assert.equal(recommend([weak],'顾客至上').length,0);
+});
+test('negative manager references do not accidentally become positive recommendations',()=>{
+ assert.equal(managerReference('暂不推荐，待核实').priority,0);assert.equal(managerReference('收到，感谢大家').priority,0);
+ assert.equal(analyze({...base,manager_review:'真实性存疑，需要继续核实'}).eligible,false);
+});

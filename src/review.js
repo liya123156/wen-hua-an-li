@@ -3,6 +3,7 @@ export function reviewMessage(c){
   const a=analyze(c),theme=THEMES.find(t=>t.name===c.theme),person=c.nominee||'待补充主人公',quote=s=>s?`“${s.slice(0,135)}”`:'';
   const focus=a.standardEvidence[0]?.label||theme?.yes?.[0]?.[0]||c.theme;
   const items=[];
+  if(c.manager_review?.trim())items.push(`店总评价供本次修改参考：${quote(c.manager_review)}。请回应其中提出的事实、贡献或完善建议；推荐标记作为参考，仍需把关键行为与结果写实。`);
   if(!c.nominee)items.push('先写清主人公姓名、门店及其在事件中的职责。视频需要明确讲谁的故事、哪些贡献由本人完成。');
   if(a.video?.context)items.push(`建议以原文${quote(a.video.context)}作为视频故事的起点。${c.event_on?'保留已写明的时间，':'补充事件发生时间，'}把场景、对方的真实需要和当时最关键的难点讲清楚，压缩与主线无关的背景。`);
   else items.push('补清故事起点：什么时候、在哪里、涉及谁、对方遇到了什么问题？请围绕一件具体事件展开。');
