@@ -5,7 +5,7 @@
   <meta name="theme-color" content="#8b68bd"><meta name="robots" content="noindex,nofollow"><meta name="referrer" content="no-referrer">
   <title>文化案例工作台 · 丽兹行上海</title>
   <meta name="description" content="发现身边的优秀，让文化被看见。文化案例收集、案例库、主题评选与门店统计。">
-  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=4">
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="./style.css?v=5">
 </head>
 <body>
 <aside class="sidebar">
@@ -39,7 +39,7 @@
     </section>
     <section id="view-selection" class="page-view" hidden>
       <div class="page-heading"><div><p class="eyebrow">CULTURE SPOTLIGHT</p><h1>寻找值得学习的榜样<span class="heading-dot">.</span></h1><p class="muted">按七大价值观集中比较，优先关注有行动、有价值的故事。</p></div><button class="button secondary" id="selection-export">↓ 导出评选参考</button></div>
-      <div class="selection-note"><span class="note-icon">✧</span><div><b>以正式价值观解读与行为准则为依据</b><p>每个主题推荐最多3篇月会视频候选，重点检核人物、场景、关键选择、行动与实际影响；质量不足时保留空缺。店总评价与本店推荐标记作为参考，不填写也不扣分；内容质量仍需达标。修改建议可一键复制给撰写人或BP。最终入选由负责人核实确认。</p></div><a href="./value-standard.png" target="_blank" rel="noopener" class="text-button">查看标准原图 ↗</a></div>
+      <div class="selection-note"><span class="note-icon">✧</span><div><b>以正式价值观解读与行为准则为依据</b><p>每个主题推荐最多3篇月会视频候选，重点检核人物、场景、关键选择、行动与实际影响；质量不足时保留空缺。店总评价与本店推荐标记作为参考，不填写也不扣分；内容质量仍需达标。修改建议可生成精简图片，直接复制或下载发给撰写人或BP。最终入选由负责人核实确认。</p></div><a href="./value-standard.png" target="_blank" rel="noopener" class="text-button">查看标准原图 ↗</a></div>
       <div class="selection-toolbar"><div id="selection-theme-filter" class="theme-filters"></div><label class="recommend-limit">每主题最多 <select id="recommend-limit" aria-label="每主题推荐数量"><option value="3">3篇</option><option value="2">2篇</option><option value="1">1篇</option></select></label></div>
       <div id="selection-results"></div>
     </section>
@@ -55,6 +55,7 @@
 </main>
 <dialog id="detail-dialog" class="detail-dialog"><button class="close-dialog" aria-label="关闭">×</button><div id="detail-content"></div></dialog>
 <dialog id="share-dialog" class="share-dialog"><button class="close-dialog" aria-label="关闭">×</button><p class="eyebrow">SHARE GOOD ACTIONS</p><h2>一起发现身边的优秀</h2><p class="muted">将链接或二维码分享给门店伙伴，打开即可提交，无需访问码。</p><div id="qr-code" class="qr-code"></div><p class="qr-caption">文化案例工作台 · 内部协作入口</p><button class="button primary full" id="copy-link">复制工作台链接 ↗</button><button class="button secondary full" id="download-qr">下载二维码</button><p class="share-tip">一起记录优秀，让值得学习的行动被看见。</p></dialog>
+<dialog id="advice-dialog" class="advice-dialog" aria-labelledby="advice-dialog-title"><button class="close-dialog" aria-label="关闭修改建议图片">×</button><div class="advice-dialog-heading"><h2 id="advice-dialog-title">给撰写人 / BP 的修改建议图</h2><p>一篇案例一张图，保留亮点、重点修改和视频准备。</p></div><div id="advice-pager" class="advice-pager" hidden><button class="button secondary" id="advice-prev">上一篇</button><span id="advice-page"></span><button class="button secondary" id="advice-next">下一篇</button></div><div class="advice-image-stage"><p id="advice-loading" role="status">正在生成修改建议图片…</p><img id="advice-preview" hidden alt="文化案例修改建议图片"></div><div class="advice-image-actions"><button class="button primary" id="copy-advice-image" disabled>复制图片发给撰写人 / BP</button><button class="button secondary" id="download-advice-image" disabled>下载图片</button><button class="text-button" id="copy-advice-short">复制简短文字</button></div><p class="advice-image-tip">复制后可直接粘贴到微信。若浏览器不支持，将自动下载图片供你转发。</p></dialog>
 <div id="toast" class="toast" role="status" aria-live="polite"></div>
-<script type="module" src="./app.js?v=4"></script>
+<script type="module" src="./app.js?v=5"></script>
 </body></html>

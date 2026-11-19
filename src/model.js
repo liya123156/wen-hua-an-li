@@ -13,6 +13,12 @@ export const STORES = [
   '嘉御庭公馆店','尚海湾店','徐汇滨江店','徐汇一店','融创滨江壹号院店','长宁古北店','Hmall中心店','Hmall旗舰店','黄浦滨江店','新天地一店','新天地二店','复兴香园店'
 ];
 export const PUBLIC_FIELDS = 'id,cycle,title,theme,behavior,store,team,nominee,joined_on,recommender,author,event_on,body,reference_note,manager_review,created_at,updated_at';
+export const SCORE_DIMENSIONS = [
+  {key:'match',label:'文化对应',max:25},
+  {key:'action',label:'具体行动',max:30},
+  {key:'result',label:'实际价值',max:25},
+  {key:'learning',label:'可学习性',max:20}
+];
 export const countWords = text => [...String(text||'').replace(/\s/g,'')].length;
 export const sentences = text => String(text||'').split(/(?<=[。！？；!?\n])/).map(s=>s.trim()).filter(Boolean);
 export function campaignRange(cycle){

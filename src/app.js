@@ -1,8 +1,8 @@
 import {CONFIG} from './config.js';
-import {THEMES,STORES,PUBLIC_FIELDS,analyze,recommend,parsePaste,validate,countWords,campaignRange} from './model.js';
+import {THEMES,STORES,PUBLIC_FIELDS,SCORE_DIMENSIONS,analyze,recommend,parsePaste,validate,countWords,campaignRange} from './model.js';
 import {qrSvg} from './qr.js';
 import {inspectSubmission,splitSubmissions,submissionCounts} from './submission.js';
-import {reviewMessage} from './review.js';
+import {buildAdviceCard,adviceCardText,renderAdviceImage} from './advice-image.js';
 import {routeFromHash,createRouteFragment} from './routes.js';
 import {buildReminder,shanghaiDay,renderCountsImage} from './counts-tools.js';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
@@ -18,6 +18,7 @@ history.replaceState(null,'',location.pathname+createRouteFragment(requestedView
 try{localStorage.removeItem('culture-access-v1')}catch{}
 let drafts=[];
 let toastTimer,draftTimer;
+let adviceSession=null,adviceObjectUrl='',adviceTicket=0;
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4500)}
 function showDialog(el){if(!el.open)el.showModal()}
 function shareLink(){return `${CONFIG.siteUrl}/`}
@@ -83,7 +84,7 @@ async function submitDraft(localId){
  finally{state.busy=false;renderDrafts();}
 }
 function filteredCases(){const q=$('#search').value.trim().toLowerCase(),store=$('#store-filter').value;return state.cases.filter(c=>(!state.theme||c.theme===state.theme)&&(!store||c.store===store)&&(!q||`${c.title} ${c.body} ${c.nominee} ${c.author} ${c.store}`.toLowerCase().includes(q))).sort((a,b)=>$('#sort').value==='quality'?analyze(b).total-analyze(a).total:(b.created_at||'').localeCompare(a.created_at||''))}
-function card(c){const t=themeOf(c.theme),a=analyze(c),date=(c.event_on||c.created_at?.slice(0,10)||'').replaceAll('-','.');return `<article class="panel case-card"><div class="case-card-top"><span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><small>${esc(date)}</small></div><h3>${esc(c.title)}</h3><div class="case-meta"><span>${esc(c.nominee)}</span><span>·</span><span>${esc(c.store)}</span>${c.team?`<span>· ${esc(c.team)}</span>`:''}</div><p class="case-excerpt">${esc(c.body)}</p><div class="card-bottom"><span class="score-mini"><b>${a.total}</b> 文本参考分</span>${button('detail',c.id,'查看故事 ↗')}</div></article>`}
+function card(c){const t=themeOf(c.theme),a=analyze(c),date=(c.event_on||c.created_at?.slice(0,10)||'').replaceAll('-','.');return `<article class="panel case-card"><div class="case-card-top"><span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><small>${esc(date)}</small></div><h3>${esc(c.title)}</h3><div class="case-meta"><span>${esc(c.nominee)}</span><span>·</span><span>${esc(c.store)}</span>${c.team?`<span>· ${esc(c.team)}</span>`:''}</div><p class="case-excerpt">${esc(c.body)}</p><div class="card-bottom"><span class="score-mini">文字初筛 <b>${a.total}/100</b> 分</span>${button('detail',c.id,'查看故事 ↗')}</div></article>`}
 function renderThemeFilter(selector,selection=false){const active=selection?state.selectionTheme:state.theme;$(selector).innerHTML=[{name:'',mark:'全部主题'},...THEMES].map(t=>`<button class="filter-chip ${active===t.name?'active':''}" data-theme="${esc(t.name)}" data-selection="${selection}">${t.name?`${t.mark} ${t.name}`:t.mark}</button>`).join('')}
 function renderLibrary(){
   const total=state.cases.length,covered=new Set(state.cases.map(c=>c.store)).size,qualified=state.cases.filter(c=>analyze(c).eligible).length;
@@ -126,19 +127,41 @@ async function countsImage(copyImage=true){
 function countsText(){const {rows,totals,grandTotal}=submissionCounts(state.cases,state.cycle);return [[state.cycle+' 文化案例提交数量一览表'],['店面',...THEMES.map(t=>t.name),'合计'],...rows.map(r=>[r.store,...THEMES.map(t=>r.counts[t.name]),r.total]),['合计',...THEMES.map(t=>totals[t.name]),grandTotal]].map(row=>row.join('\t')).join('\n');}
 function standards(t){return `<details class="panel standard-details"><summary>${esc(t.name)} · 查看正式标准提要及正负向行为</summary><div class="standard-content"><p><b>价值观解读：</b>${esc(t.meaning)}</p><p><b>为什么：</b>${esc(t.value)}</p><div class="standard-columns"><div><h4>正向行为 · 寻找具体行动</h4><ul>${t.yes.map(([v])=>`<li>${esc(v)}</li>`).join('')}</ul></div><div><h4>负向行为 · 核实冲突线索</h4><ul>${t.no.map(v=>`<li>${esc(v)}</li>`).join('')}</ul></div></div><p>以上为依据上传文件整理的标准提要。完整表述以<a href="./value-standard.png" target="_blank" rel="noopener">价值观解读与行为准则原图</a>为准。</p></div></details>`}
 function managerBlock(c){return c.manager_review?.trim()?`<div class="manager-review-display"><span class="manager-badge">♡ ${esc(analyze(c).manager.label)}</span><p>${esc(c.manager_review)}</p></div>`:''}
-function recommendationCard(c,i){const a=c.assessment;return `<article class="panel recommend-card"><p class="rank-label">CANDIDATE 0${i+1} · 建议优先复核</p><div class="recommend-head"><h3>${esc(c.title)}</h3><span class="recommend-score">${a.total}<small> / 100</small></span></div><div class="case-meta">${esc(c.nominee)} · ${esc(c.store)}</div>${managerBlock(c)}<div class="review-block"><h4>为什么推荐</h4><ul>${a.reasons.map(v=>`<li>${esc(v)}</li>`).join('')}</ul></div><div class="review-block"><h4>月会视频 · 下一步怎么完善</h4><ul>${a.suggestions.slice(0,3).map(v=>`<li>${esc(v)}</li>`).join('')}</ul></div><div class="card-bottom">${button('detail',c.id,'查看完整案例 ↗')}${button('copy-advice',c.id,'复制给撰写人 / BP')}</div></article>`}
+function scoreSummary(a){return `<div class="recommend-score" aria-label="文字初筛参考分${a.total}分，满分100分"><span class="score-label">文字初筛参考分</span><span class="score-value"><b>${a.total}</b><small>分 / 100</small></span></div>`}
+function scoreExplanation(a){return `<div class="score-explanation"><dl class="score-dimensions">${SCORE_DIMENSIONS.map(d=>`<div><dt>${d.label}</dt><dd><b>${a.scores[d.key]}</b><span> / ${d.max}</span></dd></div>`).join('')}</dl><p>系统按现有文字的四项呈现情况计算，供内容初筛参考。最终入选由负责人核实确认。${a.repetitive?'重复表达较多，参考总分已下调。':''}${a.manager.present?'店总评价另作推荐参考，不计入100分。':''}</p></div>`}
+function recommendationCard(c){const a=c.assessment;return `<article class="panel recommend-card"><p class="rank-label">月会视频候选 · 建议优先复核</p><div class="recommend-head"><h3>${esc(c.title)}</h3>${scoreSummary(a)}</div><div class="case-meta">${esc(c.nominee)} · ${esc(c.store)}</div>${scoreExplanation(a)}${managerBlock(c)}<div class="review-block"><h4>为什么推荐</h4><ul>${a.reasons.map(v=>`<li>${esc(v)}</li>`).join('')}</ul></div><div class="review-block"><h4>月会视频 · 下一步怎么完善</h4><ul>${a.suggestions.slice(0,3).map(v=>`<li>${esc(v)}</li>`).join('')}</ul></div><div class="card-bottom">${button('detail',c.id,'查看完整案例')}${button('advice-image',c.id,'给撰写人 / BP · 修改建议图','advice-image-button')}</div></article>`}
 function renderSelection(){
   renderThemeFilter('#selection-theme-filter',true);const limit=+$('#recommend-limit').value;
   $('#selection-results').innerHTML=THEMES.filter(t=>!state.selectionTheme||t.name===state.selectionTheme).map(t=>{
     const all=state.cases.filter(c=>c.theme===t.name),selected=recommend(state.cases,t.name,limit),selectedIds=new Set(selected.map(c=>c.id)),pending=all.filter(c=>!selectedIds.has(c.id));
-    return `<section class="selection-group"><div class="selection-group-heading"><h2><span>${t.mark}</span>${t.name}</h2><div><p>收到${all.length}篇 · 视频候选${selected.length}篇</p>${selected.length?`<button class="text-button copy-theme-advice" data-copy-theme="${t.name}">复制本主题修改清单</button>`:''}</div></div>${standards(t)}<div class="selection-cards">${selected.length?selected.map(recommendationCard).join(''):empty(all.length?'本主题暂未推荐候选':'等待这一主题的好故事',all.length?'现有案例还需补充关键行动或实际结果，完善后会重新参与初筛。':'提交真实、具体的文化故事后，这里会生成推荐依据与完善建议。',!all.length)}</div>${pending.length?`<details class="panel pending-list"><summary>其他${pending.length}篇案例 · 查看完善建议</summary>${pending.map(c=>{const a=analyze(c);return `<div class="pending-row"><strong>${esc(c.nominee)} · ${esc(c.store)} · ${a.total}分</strong><p>${esc(a.eligible?'已达到初筛条件，因当前推荐名额暂未列入；仍可由负责人复核比较。':a.suggestions.slice(0,2).join(' '))}</p>${button('detail',c.id,'查看原文与完整建议 ↗')}</div>`}).join('')}</details>`:''}</section>`;
+    return `<section class="selection-group"><div class="selection-group-heading"><h2><span>${t.mark}</span>${t.name}</h2><div><p>收到${all.length}篇 · 视频候选${selected.length}篇</p>${selected.length?`<button class="text-button copy-theme-advice" data-advice-theme="${t.name}">本主题修改建议图</button>`:''}</div></div>${standards(t)}<div class="selection-cards">${selected.length?selected.map(recommendationCard).join(''):empty(all.length?'本主题暂未推荐候选':'等待这一主题的好故事',all.length?'现有案例还需补充关键行动或实际结果，完善后会重新参与初筛。':'提交真实、具体的文化故事后，这里会生成推荐依据与完善建议。',!all.length)}</div>${pending.length?`<details class="panel pending-list"><summary>其他${pending.length}篇案例 · 查看完善建议</summary>${pending.map(c=>{const a=analyze(c);return `<div class="pending-row"><strong>${esc(c.nominee)} · ${esc(c.store)} · 初筛参考 ${a.total}/100分</strong><p>${esc(a.eligible?'已达到初筛条件，因当前推荐名额暂未列入；仍可由负责人复核比较。':a.suggestions.slice(0,2).join(' '))}</p>${button('detail',c.id,'查看原文与完整建议 ↗')}</div>`}).join('')}</details>`:''}</section>`;
   }).join('');
 }
-function adviceText(c){return reviewMessage(c)}
+async function showAdvice(cases,index=0){
+ if(!cases?.length)return;
+ const ticket=++adviceTicket,c=cases[index],card=buildAdviceCard(c),image=renderAdviceImage(card);
+ adviceSession={cases,index,card,image,name:`文化案例修改建议_${card.person}_${card.theme}.png`.replace(/[\\/:*?"<>|]/g,'_')};
+ if(adviceObjectUrl){URL.revokeObjectURL(adviceObjectUrl);adviceObjectUrl=''}
+ $('#advice-preview').hidden=true;$('#advice-preview').removeAttribute('src');$('#advice-loading').hidden=false;$('#advice-loading').textContent='正在生成修改建议图片…';
+ $('#copy-advice-image').disabled=true;$('#download-advice-image').disabled=true;
+ $('#advice-pager').hidden=cases.length<2;$('#advice-page').textContent=`${index+1} / ${cases.length}`;$('#advice-prev').disabled=index===0;$('#advice-next').disabled=index===cases.length-1;
+ showDialog($('#advice-dialog'));
+ try{const blob=await image;if(ticket!==adviceTicket||!$('#advice-dialog').open)return;adviceObjectUrl=URL.createObjectURL(blob);$('#advice-preview').src=adviceObjectUrl;$('#advice-preview').alt=`${card.person} · ${card.store} · ${card.theme}的修改建议图片`;$('#advice-preview').hidden=false;$('#advice-loading').hidden=true;$('#copy-advice-image').disabled=false;$('#download-advice-image').disabled=false;}
+ catch(e){if(ticket!==adviceTicket)return;$('#advice-loading').textContent=e.message||'图片生成失败，请重试。'}
+}
+async function shareAdviceImage(copyImage=true){
+ const current=adviceSession;if(!current)return;
+ try{
+  if(copyImage&&navigator.clipboard?.write&&typeof ClipboardItem!=='undefined'){
+   try{await navigator.clipboard.write([new ClipboardItem({'image/png':current.image})]);toast('修改建议图片已复制，可直接粘贴给撰写人或BP。');return}catch{}
+  }
+  downloadBlob(current.name,await current.image);toast(copyImage?'当前浏览器未允许复制图片，已下载PNG，可直接转发。':'修改建议图片已下载。');
+ }catch(e){toast(e.message||'图片导出失败，请重试。')}
+}
 function caseText(c){if(inspectSubmission(c.body,c.cycle).ok)return c.body;return [`店面：${c.store}`,`推荐主题：${c.theme}`,c.nominee?`被推荐人：${c.nominee}`:'',c.behavior?`对应文化行为点：${c.behavior}`:'',c.joined_on?`被推荐人入职时间：${c.joined_on}`:'',c.recommender?`推荐人：${c.recommender}`:'',c.author?`撰写人：${c.author}`:'',c.event_on?`事件发生日期：${c.event_on}`:'',`案例标题：${c.title}`,'',c.body].filter(v=>v!==null).join('\n');}
 function showDetail(c){
   if(!c)return;const a=analyze(c),t=themeOf(c.theme),info=[['被推荐人',c.nominee],['门店',c.store],['组别',c.team],['入职时间',c.joined_on],['发生日期',c.event_on],['推荐人',c.recommender],['撰写人',c.author]].filter(([,v])=>v);
-  $('#detail-content').innerHTML=`<span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><h2>${esc(c.title)}</h2><div class="detail-info">${info.map(([label,value])=>`<span>${label}：${esc(value)}</span>`).join('')}</div>${c.behavior?`<p class="muted">文化行为点：${esc(c.behavior)}</p>`:''}<div class="detail-body">${esc(c.body)}</div>${managerBlock(c)}${c.reference_note?`<p class="muted" style="margin-top:18px">可核实线索：${esc(c.reference_note)}</p>`:''}<div class="score-breakdown">${[['match','文化准则对应',25],['action','具体行动',30],['result','实际价值',25],['learning','可学习性',20]].map(([k,label,max])=>`<div>${label}<b>${a.scores[k]}<small> / ${max}</small></b></div>`).join('')}</div><p class="muted">文本参考分 ${a.total}/100 · ${a.eligible?'达到初筛条件，建议人工复核':'建议补充后再参与推荐'} · 事实待核实</p><div class="review-block"><h4>对应正向准则与原文依据</h4>${a.standardEvidence.length?a.standardEvidence.map(x=>`<p>${esc(x.label)}</p><blockquote class="evidence-quote">${esc(x.evidence)}</blockquote>`).join(''):'<p>原文尚未找到足够具体的正向行动依据。</p>'}</div>${a.conflicts.length?`<div class="error-box">以下语句存在需核实的负向行为线索，暂不作事实认定：${a.conflicts.map(x=>`<p>${esc(x)}</p>`).join('')}</div>`:''}<div class="review-block"><h4>下一步修改建议</h4><ul>${a.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div><div class="detail-actions">${button('copy-case',c.id,'复制完整案例')}${button('copy-advice',c.id,'复制给撰写人 / BP')}${state.keys[c.id]?button('edit',c.id,'编辑我的案例 ↗')+button('copy-edit-link',c.id,'保存专属修改链接'):''}</div><p class="muted" style="font-size:10px;margin-top:17px">评选以价值观解读、正向行为和实际价值为依据。文本辅助初筛不代替事实核实与最终定奖。</p>`;
+  $('#detail-content').innerHTML=`<span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><h2>${esc(c.title)}</h2><div class="detail-info">${info.map(([label,value])=>`<span>${label}：${esc(value)}</span>`).join('')}</div>${c.behavior?`<p class="muted">文化行为点：${esc(c.behavior)}</p>`:''}<div class="detail-body">${esc(c.body)}</div>${managerBlock(c)}${c.reference_note?`<p class="muted" style="margin-top:18px">可核实线索：${esc(c.reference_note)}</p>`:''}<section class="detail-score"><h3>文字初筛评分说明</h3>${scoreSummary(a)}${scoreExplanation(a)}</section><div class="review-block"><h4>对应正向准则与原文依据</h4>${a.standardEvidence.length?a.standardEvidence.map(x=>`<p>${esc(x.label)}</p><blockquote class="evidence-quote">${esc(x.evidence)}</blockquote>`).join(''):'<p>原文尚未找到足够具体的正向行动依据。</p>'}</div>${a.conflicts.length?`<div class="error-box">以下语句存在需核实的负向行为线索，暂不作事实认定：${a.conflicts.map(x=>`<p>${esc(x)}</p>`).join('')}</div>`:''}<div class="review-block"><h4>下一步修改建议</h4><ul>${a.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div><div class="detail-actions">${button('copy-case',c.id,'复制完整案例')}${button('advice-image',c.id,'给撰写人 / BP · 修改建议图')}${state.keys[c.id]?button('edit',c.id,'编辑我的案例 ↗')+button('copy-edit-link',c.id,'保存专属修改链接'):''}</div><p class="muted" style="font-size:10px;margin-top:17px">评选以价值观解读、正向行为和实际价值为依据。文本辅助初筛不代替事实核实与最终定奖。</p>`;
   showDialog($('#detail-dialog'));
 }
 async function editCase(c,token){if(!c)return;let d=drafts.find(x=>x.editId===c.id||x.savedId===c.id);if(!d){d=freshDraft();drafts.unshift(d)}Object.assign(d,{raw:caseText(c),managerReview:c.manager_review||'',cycle:c.cycle,editId:c.id,token,savedId:'',error:''});state.cycle=c.cycle;$('#cycle').value=state.cycle;campaign();renderDrafts();$('#detail-dialog').close();changeView('submit');saveDrafts();$('#input-'+d.localId).focus();}
@@ -159,8 +182,8 @@ document.addEventListener('click',async event=>{
   const theme=event.target.closest('[data-theme]');if(theme){if(theme.dataset.selection==='true'){state.selectionTheme=theme.dataset.theme;renderSelection()}else{state.theme=theme.dataset.theme;renderLibrary()}return}
   const submit=event.target.closest('[data-submit-draft]');if(submit){await submitDraft(submit.dataset.submitDraft);return}
   const split=event.target.closest('[data-split-draft]');if(split){splitDraft(split.dataset.splitDraft);return}
-  const topic=event.target.closest('[data-copy-theme]');if(topic){const selected=recommend(state.cases,topic.dataset.copyTheme,+$('#recommend-limit').value);await copy(selected.map((c,i)=>`【候选${i+1}】\n`+reviewMessage(c)).join('\n\n'));return}
-  const action=event.target.closest('[data-action]');if(!action)return;const c=state.cases.find(c=>c.id===action.dataset.id)||drafts.find(d=>d.savedId===action.dataset.id)?.savedRecord;switch(action.dataset.action){case'new':changeView('submit');break;case'detail':showDetail(c);break;case'edit':await editCase(c,state.keys[c.id]);break;case'copy-advice':if(c)await copy(adviceText(c));break;case'copy-case':if(c)await copy(caseText(c)+(c.manager_review?.trim()?'\n\n店总评价：\n'+c.manager_review:''));break;case'copy-edit-link':if(c)await copy(modificationLink(c.id,state.keys[c.id]));break}
+  const topic=event.target.closest('[data-advice-theme]');if(topic){await showAdvice(recommend(state.cases,topic.dataset.adviceTheme,+$('#recommend-limit').value));return}
+  const action=event.target.closest('[data-action]');if(!action)return;const c=state.cases.find(c=>c.id===action.dataset.id)||drafts.find(d=>d.savedId===action.dataset.id)?.savedRecord;switch(action.dataset.action){case'new':changeView('submit');break;case'detail':showDetail(c);break;case'edit':await editCase(c,state.keys[c.id]);break;case'advice-image':if(c)await showAdvice([c]);break;case'copy-case':if(c)await copy(caseText(c)+(c.manager_review?.trim()?'\n\n店总评价：\n'+c.manager_review:''));break;case'copy-edit-link':if(c)await copy(modificationLink(c.id,state.keys[c.id]));break}
 });
 $$('.close-dialog').forEach(b=>b.addEventListener('click',()=>b.closest('dialog').close()));
 $$('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
@@ -170,6 +193,12 @@ $('#submission-list').addEventListener('input',event=>{
  if(review)d.managerReview=review.value;else d.raw=input.value;
  d.error='';updateDraftCard(d);saveDrafts();
 });
+$('#copy-advice-image').addEventListener('click',()=>shareAdviceImage(true));
+$('#download-advice-image').addEventListener('click',()=>shareAdviceImage(false));
+$('#copy-advice-short').addEventListener('click',()=>{if(adviceSession)void copy(adviceCardText(adviceSession.card))});
+$('#advice-prev').addEventListener('click',()=>{if(adviceSession?.index>0)void showAdvice(adviceSession.cases,adviceSession.index-1)});
+$('#advice-next').addEventListener('click',()=>{if(adviceSession&&adviceSession.index<adviceSession.cases.length-1)void showAdvice(adviceSession.cases,adviceSession.index+1)});
+$('#advice-dialog').addEventListener('close',()=>{if($('#advice-dialog').open)return;adviceTicket++;adviceSession=null;if(adviceObjectUrl){URL.revokeObjectURL(adviceObjectUrl);adviceObjectUrl=''}$('#advice-preview').removeAttribute('src')});
 $('#reminder-deadline').addEventListener('change',()=>{const saved=read('culture-reminder-deadlines-v1',{});saved[state.cycle]=$('#reminder-deadline').value;write('culture-reminder-deadlines-v1',saved);renderReminder()});
 $('#copy-reminder').addEventListener('click',()=>copy($('#reminder-message').value));
 $('#copy-counts-image').addEventListener('click',()=>countsImage(true));
