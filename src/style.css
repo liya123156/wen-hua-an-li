@@ -59,3 +59,33 @@
 .advice-image-tip{font-size:.875rem;line-height:1.8;text-align:center;color:#8a7295;margin:0 0 4px}
 @media(max-width:1100px){.selection-cards{grid-template-columns:1fr}.recommend-card{padding:26px}.recommend-head h3{font-size:1.3125rem}}
 @media(max-width:700px){.recommend-card{padding:23px 20px}.recommend-head{gap:13px}.recommend-head h3{font-size:1.125rem}.recommend-score{min-width:126px;padding:12px}.recommend-score .score-label{font-size:.875rem}.recommend-score .score-value b{font-size:2rem}.recommend-score .score-value small{font-size:.875rem}.score-dimensions{gap:7px}.score-dimensions>div{padding:9px}.score-dimensions dt{font-size:.875rem}.score-explanation>p{font-size:.875rem}.recommend-card .review-block li{font-size:1rem}.recommend-card .card-bottom{align-items:flex-start}.advice-dialog{padding:24px 15px 16px;width:calc(100vw - 20px);border-radius:19px}.advice-dialog-heading h2{font-size:1.125rem}.advice-dialog-heading p{font-size:.875rem}.advice-image-actions{gap:10px;padding:14px 0 10px}.advice-image-actions>.primary{width:100%}.advice-image-actions>.secondary{flex:1}.advice-image-tip{font-size:.8125rem}.detail-score{padding:18px}}
+/* Store reviews keep every case intact and put the month conclusion beside the collection action. */
+[hidden]{display:none!important}
+.store-collection-panel{padding:26px;margin:24px 0;background:linear-gradient(125deg,#faf5ff,#fff9fc);border-radius:20px;border-color:#e4d6ed}
+.store-collection-heading{display:flex;justify-content:space-between;align-items:center;gap:20px}
+.store-collection-heading h2{font-size:1.3125rem;color:#72508a;line-height:1.6;margin:0}
+.store-collection-heading p{font-size:.9375rem;line-height:1.8;margin:8px 0 0;color:#81678f}
+.collection-scope-note{font-size:.9375rem;line-height:1.8;color:#8b7398;margin:18px 0 14px}
+.store-feedback{padding:15px 18px;background:#fff;border:1px solid #e9ddf0;border-radius:13px}
+.store-feedback summary{font-size:1rem;color:#77518f;font-weight:600;cursor:pointer;line-height:1.8}
+.store-feedback textarea{margin-top:15px;font-size:1rem;line-height:1.9;min-height:230px;padding:17px;background:#fffcfe}
+.store-feedback-actions{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-top:18px;flex-wrap:wrap}
+.store-feedback-actions>span{font-size:.875rem;color:#897194;line-height:1.8}
+.case-grid.full-library{display:grid;grid-template-columns:minmax(0,1fr);gap:24px}
+.collection-case{padding:30px;border-radius:20px;min-width:0}
+.collection-case-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:24px}
+.collection-case-heading h3{font-size:1.375rem;line-height:1.7;margin:14px 0 9px;color:#67477c;overflow-wrap:anywhere}
+.collection-case-heading .case-meta{font-size:1rem;line-height:1.8;margin:0;color:#816a91}
+.collection-case .score-explanation{max-width:940px;margin-top:15px}
+.collection-case .score-dimensions{grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.collection-case .score-dimensions dt{font-size:.9375rem}
+.collection-case .score-explanation>p{font-size:.9375rem}
+.full-body-label{font-size:1rem;line-height:1.8;color:#7b5c8f;margin:25px 0 13px}
+.full-case-body{font-size:1rem;line-height:2;white-space:pre-wrap;overflow-wrap:anywhere;color:#55445f;background:#fdfbfe;border:1px solid #eee5f4;border-radius:13px;padding:24px;max-height:none;overflow:visible}
+.collection-case-actions{display:flex;gap:17px;flex-wrap:wrap;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid #eadff0}
+.collection-case-actions .text-button{font-size:.9375rem}
+.edit-case-button{padding:10px 14px;background:#eee1f7;color:#74508d;font-weight:650;border-radius:10px}
+.collection-dialog .advice-dialog-heading{padding-right:34px}
+@media(max-width:1000px){.collection-case .score-dimensions{grid-template-columns:repeat(2,minmax(0,1fr))}.store-collection-heading{flex-wrap:wrap}.collection-case{padding:25px}.full-case-body{padding:21px}}
+@media(max-width:700px){.topbar{height:auto;min-height:64px;padding-top:10px;padding-bottom:10px}.top-actions{flex-wrap:wrap}.store-collection-panel{padding:21px 18px}.store-collection-heading{align-items:flex-start;gap:15px}.store-collection-heading h2{font-size:1.1875rem}.store-collection-heading p,.collection-scope-note{font-size:.875rem}.store-collection-heading .button{width:100%;font-size:.9375rem}.store-feedback{padding:14px}.store-feedback textarea{padding:14px;font-size:1rem}.store-feedback-actions .button{width:100%;font-size:.9375rem}.collection-case{padding:22px 18px}.collection-case-heading{gap:13px}.collection-case-heading h3{font-size:1.1875rem;line-height:1.8}.collection-case-heading .case-meta{font-size:.9375rem}.collection-case .score-dimensions dt{font-size:.875rem}.collection-case .score-explanation>p{font-size:.875rem}.full-case-body{padding:17px;font-size:1rem;line-height:2}.collection-case-actions{gap:14px}.collection-case-actions .text-button{font-size:.9375rem}.collection-dialog .advice-image-actions .primary{width:100%}}
+.case-edit-dialog{width:min(580px,calc(100vw - 30px));padding:30px;border-radius:20px}.case-edit-dialog h2{font-size:1.3125rem;line-height:1.7;color:#72508a;margin-right:20px}.case-edit-dialog>p{font-size:1rem;line-height:1.9;color:#7b6589}.case-edit-dialog form label{display:block;font-size:1rem;margin-bottom:11px;color:#78578e}.case-edit-dialog form input{font-size:1rem;padding:14px}.case-edit-dialog .muted{font-size:.875rem;margin-top:18px}.submission-card-footer>div{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end}

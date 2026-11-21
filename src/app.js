@@ -4,6 +4,8 @@ import {qrSvg} from './qr.js';
 import {inspectSubmission,splitSubmissions,submissionCounts} from './submission.js';
 import {buildAdviceCard,adviceCardText,renderAdviceImage} from './advice-image.js';
 import {routeFromHash,createRouteFragment} from './routes.js';
+import {storeCollection,storeFeedback,renderCollectionImages} from './store-collection.js';
+import {parseModificationLink,caseClientInfo} from './edit-access.js';
 import {buildReminder,shanghaiDay,renderCountsImage} from './counts-tools.js';
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -19,9 +21,11 @@ try{localStorage.removeItem('culture-access-v1')}catch{}
 let drafts=[];
 let toastTimer,draftTimer;
 let adviceSession=null,adviceObjectUrl='',adviceTicket=0;
+let collectionSession=null,collectionObjectUrl='',collectionTicket=0,editLinkTarget=null;
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4500)}
 function showDialog(el){if(!el.open)el.showModal()}
 function shareLink(){return `${CONFIG.siteUrl}/`}
+function editable(c){return !!c&&!!state.keys[c.id]}
 function setStatus(text,offline=false){$('#sync-status').textContent=text;$('.status-dot').classList.toggle('offline',offline)}
 function themeOf(name){return THEMES.find(t=>t.name===name)}
 function button(action,id,text,extra=''){return `<button class="text-button ${extra}" data-action="${action}" data-id="${esc(id)}">${text}</button>`}
@@ -29,8 +33,8 @@ function empty(title,description,action=true){return `<div class="empty-state"><
 async function api(path,{method='GET',body,token=''}={}){
   const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),18000);
   let response;
-  try{response=await fetch(CONFIG.supabaseUrl+'/rest/v1/'+path,{method,headers:{apikey:CONFIG.publishableKey,'Content-Type':'application/json','x-client-info':`culture-web.${token}`,...(method==='GET'?{}:{Prefer:'return=representation'})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:controller.signal})}catch(e){throw Error(e.name==='AbortError'?'连接超时，请稍后重试；当前草稿已保留。':'暂时无法连接案例库，请检查网络后重试。')}finally{clearTimeout(timer)}
-  if(!response.ok){let data={};try{data=await response.json()}catch{}if(response.status===409)throw Error('本次提交已保存，请刷新案例库查看。');if(response.status===401||response.status===403)throw Error('保存权限验证未通过；修改已入库案例请使用该篇专属修改链接。');if(data.code==='23514')throw Error('请核对店面、推荐主题和案例内容，店总评价不超过5000字。');throw Error('保存未成功，请稍后重试；当前草稿已保留。')}
+  try{response=await fetch(CONFIG.supabaseUrl+'/rest/v1/'+path,{method,headers:{apikey:CONFIG.publishableKey,'Content-Type':'application/json','x-client-info':caseClientInfo(token),...(method==='GET'?{}:{Prefer:'return=representation'})},...(body===undefined?{}:{body:JSON.stringify(body)}),signal:controller.signal})}catch(e){throw Error(e.name==='AbortError'?'连接超时，请稍后重试；当前草稿已保留。':'暂时无法连接案例库，请检查网络后重试。')}finally{clearTimeout(timer)}
+  if(!response.ok){let data={};try{data=await response.json()}catch{}if(response.status===409)throw Error('本次提交已保存，请刷新案例库查看。');if(response.status===401||response.status===403)throw Error('保存权限验证未通过；修改案例请使用该篇专属修改链接。');if(data.code==='23514')throw Error('请核对店面、推荐主题和案例内容，店总评价不超过5000字。');throw Error('保存未成功，请稍后重试；当前草稿已保留。')}
   if(response.status===204)return [];
   return response.json();
 }
@@ -48,11 +52,11 @@ async function loadCases({silent=false}={}){
 }
 function changeView(view,scroll=true){state.view=view;$$('.page-view').forEach(x=>x.hidden=x.id!==`view-${view}`);$$('.nav-item').forEach(x=>x.classList.toggle('active',x.dataset.view===view));$('#page-name').textContent={submit:'粘贴案例',library:'案例库',selection:'案例评选',counts:'各店提交数量一览表'}[view];history.replaceState(null,'',location.pathname+createRouteFragment(view));if(scroll)window.scrollTo({top:0,behavior:'instant'})}
 function campaign(){$('#campaign-dates').textContent=state.cycle.replace('-','年')+'月征集';}
-function freshDraft(raw='',extra={}){return {localId:crypto.randomUUID(),raw,managerReview:'',cycle:state.cycle,error:'',savedId:'',pending:null,...extra}}
+function freshDraft(raw='',extra={}){return {localId:crypto.randomUUID(),raw,managerReview:'',referenceNote:'',cycle:state.cycle,error:'',savedId:'',pending:null,...extra}}
 function saveDrafts(){clearTimeout(draftTimer);draftTimer=setTimeout(()=>write('culture-drafts-v2',drafts.filter(d=>!d.savedId)),250)}
 function draftMarkup(d,index){
   const a=inspectSubmission(d.raw,d.cycle),parts=d.savedId?[]:splitSubmissions(d.raw);
-  return `<article class="panel submission-card ${d.savedId?'is-saved':''}" data-draft-id="${d.localId}"><div class="submission-card-heading"><h3>案例 ${String(index+1).padStart(2,'0')}</h3><small>${d.savedId?'已入库':'粘贴原文即可'}</small></div><div class="submission-tags" data-slot="tags">${draftTags(a)}</div><label class="sr-only" for="input-${d.localId}">第${index+1}篇案例</label><textarea id="input-${d.localId}" data-draft-input="${d.localId}" rows="9" maxlength="120000" ${d.savedId?'readonly':''} placeholder="店面：黄浦滨江店&#10;推荐主题：拥抱变化&#10;&#10;在这里粘贴案例全文……&#10;&#10;本框默认一篇。多篇可新建输入框，或用“案例1 / 案例2”明确编号。">${esc(d.raw)}</textarea><label class="manager-review-label" for="review-${d.localId}">店总评价 <span>选填 · 不填写也可提交</span></label><textarea id="review-${d.localId}" class="manager-review-input" data-manager-review="${d.localId}" rows="3" maxlength="5000" ${d.savedId?'readonly':''} placeholder="可写推荐理由、具体评价或修改建议。店面推荐的2篇可注明：店总推荐1 / 店总推荐2。">${esc(d.managerReview||'')}</textarea><div class="split-hint" data-slot="split" ${parts.length>1?'':'hidden'}><span>找到 ${parts.length} 个明确案例编号</span><button class="text-button" data-split-draft="${d.localId}">拆分为多篇 ↗</button></div><div class="error-box" role="alert" data-slot="error" ${d.error?'':'hidden'}>${esc(d.error)}</div><div class="submission-card-footer"><small data-slot="hint">${d.savedId?'已保存到案例库':d.raw.trim()?`${a.chars}字 · ${a.ok?'店面与主题已明确':a.errors[0]||'请补充原文'}`:'请在原文中写清店面和推荐主题'}</small><div>${d.savedId?`<span class="saved-label">已入库 ✓</span> ${button('detail',d.savedId,'查看案例 ↗')}`:`<button class="button primary" data-submit-draft="${d.localId}" ${!a.ok||state.busy?'disabled':''}>${d.editId?'保存修改':'提交本篇'} ↗</button>`}</div></div></article>`;
+  return `<article class="panel submission-card ${d.savedId?'is-saved':''}" data-draft-id="${d.localId}"><div class="submission-card-heading"><h3>案例 ${String(index+1).padStart(2,'0')}</h3><small>${d.savedId?'已入库':d.editId?'正在修改原案例':'粘贴原文即可'}</small></div><div class="submission-tags" data-slot="tags">${draftTags(a)}</div><label class="sr-only" for="input-${d.localId}">第${index+1}篇案例</label><textarea id="input-${d.localId}" data-draft-input="${d.localId}" rows="9" maxlength="120000" ${d.savedId?'readonly':''} placeholder="店面：黄浦滨江店&#10;推荐主题：拥抱变化&#10;&#10;在这里粘贴案例全文……&#10;&#10;本框默认一篇。多篇可新建输入框，或用“案例1 / 案例2”明确编号。">${esc(d.raw)}</textarea><label class="manager-review-label" for="review-${d.localId}">店总评价 <span>选填 · 不填写也可提交</span></label><textarea id="review-${d.localId}" class="manager-review-input" data-manager-review="${d.localId}" rows="3" maxlength="5000" ${d.savedId?'readonly':''} placeholder="可写推荐理由、具体评价或修改建议。店面推荐的2篇可注明：店总推荐1 / 店总推荐2。">${esc(d.managerReview||'')}</textarea><div class="split-hint" data-slot="split" ${parts.length>1?'':'hidden'}><span>找到 ${parts.length} 个明确案例编号</span><button class="text-button" data-split-draft="${d.localId}">拆分为多篇 ↗</button></div><div class="error-box" role="alert" data-slot="error" ${d.error?'':'hidden'}>${esc(d.error)}</div><div class="submission-card-footer"><small data-slot="hint">${d.savedId?'已保存到案例库':d.raw.trim()?`${a.chars}字 · ${a.ok?'店面与主题已明确':a.errors[0]||'请补充原文'}`:'请在原文中写清店面和推荐主题'}</small><div>${d.savedId?`<span class="saved-label">已入库 ✓</span> ${button('detail',d.savedId,'查看案例')} ${button('edit',d.savedId,'修改本篇')} ${state.keys[d.savedId]?button('copy-edit-link',d.savedId,'复制修改链接给BP'):''}`:`<button class="button primary" data-submit-draft="${d.localId}" ${!a.ok||state.busy?'disabled':''}>${d.editId?'保存修改':'提交本篇'} ↗</button>`}</div></div></article>`;
 }
 function draftTags(a){return `<span class="detected-tag ${a.store?'':'missing'}">${esc(a.store||'需写清店面')}</span><span class="detected-tag ${a.theme?'':'missing'}">${esc(a.theme||'需写清推荐主题')}</span>`}
 function renderDrafts(){$('#submission-list').innerHTML=drafts.map(draftMarkup).join('');}
@@ -65,7 +69,7 @@ function modificationLink(id,token){return `${CONFIG.siteUrl}/#edit=${encodeURIC
 async function submitDraft(localId){
  const d=drafts.find(x=>x.localId===localId);if(!d||d.savedId||state.busy)return;const a=inspectSubmission(d.raw,d.cycle);if(!a.ok){d.error=a.errors.join(' ');updateDraftCard(d);return}
  if(String(d.managerReview||'').length>5000){d.error='店总评价请控制在5000字以内。';updateDraftCard(d);return}
- const data={...a.payload,manager_review:String(d.managerReview||'').trim()};state.busy=true;d.error='';$$('[data-submit-draft]').forEach(b=>b.disabled=true);const current=$(`[data-submit-draft="${d.localId}"]`);if(current)current.textContent='正在保存…';
+ const data={...a.payload,reference_note:d.referenceNote||'',manager_review:String(d.managerReview||'').trim()};state.busy=true;d.error='';$$('[data-submit-draft]').forEach(b=>b.disabled=true);const current=$(`[data-submit-draft="${d.localId}"]`);if(current)current.textContent='正在保存…';
  try{
   let id,token,saved;
   if(d.editId){id=d.editId;token=d.token;const update={...data};delete update.cycle;saved=await api(`culture_cases_v1?id=eq.${id}&select=${PUBLIC_FIELDS}`,{method:'PATCH',body:update,token});if(!saved.length)throw Error('没有此案例的修改权限，请使用该篇案例的专属修改链接。');}
@@ -76,22 +80,69 @@ async function submitDraft(localId){
    else saved=await api(`culture_cases_v1?select=${PUBLIC_FIELDS}`,{method:'POST',body:{...data,id,edit_hash:await digest(token)},token});
   }
   if(!saved?.[0])throw Error('未收到保存结果，草稿已保留，请重试。');
-  state.keys[id]=token;write('culture-edit-keys-v1',state.keys);d.savedId=id;d.savedRecord=saved[0];d.pending=null;d.editId='';state.dataRevision++;
+  if(token){state.keys[id]=token;write('culture-edit-keys-v1',state.keys);}d.savedId=id;d.savedRecord=saved[0];d.pending=null;d.editId='';state.dataRevision++;
   if(saved[0].cycle===state.cycle){state.cases=[saved[0],...state.cases.filter(c=>c.id!==id)];state.loaded=true;renderLibrary();renderSelection();renderCounts();}
   if(!drafts.some(x=>!x.savedId&&!x.raw.trim()))drafts.push(freshDraft());
-  saveDrafts();toast('本篇已入库，可以继续提交下一篇。');void loadCases({silent:true});
+  saveDrafts();toast(d.wasEdit?'原案例已更新，评分和门店集锦已同步，提交篇数不变。':'本篇已入库，可以继续提交下一篇。');void loadCases({silent:true});
  }catch(e){d.error=e.message;saveDrafts();}
  finally{state.busy=false;renderDrafts();}
 }
 function filteredCases(){const q=$('#search').value.trim().toLowerCase(),store=$('#store-filter').value;return state.cases.filter(c=>(!state.theme||c.theme===state.theme)&&(!store||c.store===store)&&(!q||`${c.title} ${c.body} ${c.nominee} ${c.author} ${c.store}`.toLowerCase().includes(q))).sort((a,b)=>$('#sort').value==='quality'?analyze(b).total-analyze(a).total:(b.created_at||'').localeCompare(a.created_at||''))}
 function card(c){const t=themeOf(c.theme),a=analyze(c),date=(c.event_on||c.created_at?.slice(0,10)||'').replaceAll('-','.');return `<article class="panel case-card"><div class="case-card-top"><span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><small>${esc(date)}</small></div><h3>${esc(c.title)}</h3><div class="case-meta"><span>${esc(c.nominee)}</span><span>·</span><span>${esc(c.store)}</span>${c.team?`<span>· ${esc(c.team)}</span>`:''}</div><p class="case-excerpt">${esc(c.body)}</p><div class="card-bottom"><span class="score-mini">文字初筛 <b>${a.total}/100</b> 分</span>${button('detail',c.id,'查看故事 ↗')}</div></article>`}
 function renderThemeFilter(selector,selection=false){const active=selection?state.selectionTheme:state.theme;$(selector).innerHTML=[{name:'',mark:'全部主题'},...THEMES].map(t=>`<button class="filter-chip ${active===t.name?'active':''}" data-theme="${esc(t.name)}" data-selection="${selection}">${t.name?`${t.mark} ${t.name}`:t.mark}</button>`).join('')}
+function currentStoreCollection(){return storeCollection(state.cases,$('#store-filter').value,state.cycle)}
+function fullCaseCard(c){const a=analyze(c),t=themeOf(c.theme);return `<article class="panel collection-case"><div class="collection-case-heading"><div><span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><h3>${esc(c.title)}</h3><p class="case-meta">${esc(c.nominee||'主人公待补充')} · ${esc(c.store)}${c.team?' · '+esc(c.team):''}</p></div>${scoreSummary(a)}</div>${scoreExplanation(a)}<h4 class="full-body-label">案例完整原文</h4><div class="full-case-body">${esc(c.body)}</div>${managerBlock(c)}<div class="collection-case-actions">${button('detail',c.id,'查看评分依据与修改建议')}${button('advice-image',c.id,'给撰写人 / BP · 修改建议图')}${button('edit',c.id,editable(c)?'修改本篇案例':'BP修改本篇案例','edit-case-button')}${editable(c)?button('copy-edit-link',c.id,'复制本篇修改链接给BP'):''}</div></article>`}
 function renderLibrary(){
-  const total=state.cases.length,covered=new Set(state.cases.map(c=>c.store)).size,qualified=state.cases.filter(c=>analyze(c).eligible).length;
-  $('#stats').innerHTML=[['已收集案例',total,'篇'],['已覆盖门店',covered,'/ 21店'],['进入初筛推荐池',qualified,'篇'],['待完善案例',total-qualified,'篇']].map(([label,n,unit])=>`<article class="stat-card"><span>${label}</span><strong>${n}<small>${unit}</small></strong></article>`).join('');
-  const rows=filteredCases();$('#list-count').textContent=`${state.cycle.replace('-','年')}月 · 共${rows.length}篇案例`;
-  $('#case-grid').innerHTML=rows.length?rows.map(card).join(''):state.cases.length?empty('还没有符合筛选条件的案例','调整价值观、门店或搜索关键词，再看看其他故事。',false):empty('故事从你的发现开始','本月暂未收到案例。推荐身边的优秀伙伴，让好行为被更多人看见。');renderThemeFilter('#theme-filter');
-
+ const store=$('#store-filter').value,report=store?currentStoreCollection():null,total=state.cases.length,covered=new Set(state.cases.map(c=>c.store)).size,qualified=state.cases.filter(c=>analyze(c).eligible).length;
+ const metrics=report?[['本店已收集',report.total,'篇'],['覆盖文化主题',report.themes.length,'/ 7个'],['文字初筛可复核',report.qualified,'篇'],['待补充完善',report.pending,'篇']]:[['已收集案例',total,'篇'],['已覆盖门店',covered,'/ 21店'],['进入初筛推荐池',qualified,'篇'],['待完善案例',total-qualified,'篇']];
+ $('#stats').innerHTML=metrics.map(([label,n,unit])=>`<article class="stat-card"><span>${label}</span><strong>${state.loaded?n:'—'}<small>${unit}</small></strong></article>`).join('');
+ const rows=filteredCases();$('#list-count').textContent=store?`${state.cycle.replace('-','年')}月 · ${store} · 当前显示${rows.length}篇，本月共${report.total}篇`:`${state.cycle.replace('-','年')}月 · 共${rows.length}篇案例`;
+ $('#case-grid').classList.toggle('full-library',!!store);
+ $('#case-grid').innerHTML=rows.length?rows.map(store?fullCaseCard:card).join(''):empty(store?'当前没有符合条件的案例':'故事从你的发现开始',store?'可以调整主题或搜索关键词；门店月度结论以本店全部当月案例为准。':'本月暂未收到案例。推荐身边的优秀伙伴，让好行为被更多人看见。',!store);
+ $('#store-collection-panel').hidden=!store;
+ if(store){
+  $('#store-collection-title').textContent=store+' · 本月文化案例集锦';
+  $('#store-collection-scope').textContent=state.loaded?`集锦范围：${state.cycle.replace('-','年')}月 · 本店全部${report.total}篇 · 包含完整原文、评分和店总评价`:'正在读取本店当月案例…';
+  $('#collection-feedback').value=state.loaded?storeFeedback(report):'';
+  $('#collection-feedback').placeholder='同步数据后生成本月收集结论。';
+  $('#open-store-collection').disabled=!state.loaded;$('#copy-store-feedback').disabled=!state.loaded;
+ }
+ renderThemeFilter('#theme-filter');
+}
+async function openCollectionImages(){
+ if(!state.loaded||!$('#store-filter').value)return;
+ const ticket=++collectionTicket,report=currentStoreCollection();
+ collectionSession={report,index:0,renderer:null,images:new Map()};
+ $('#collection-dialog-title').textContent=report.store+' · 本月案例集锦';$('#collection-dialog-scope').textContent=report.cycle.replace('-','年')+'月 · 本店全部'+report.total+'篇 · 完整原文与评分';
+ $('#collection-preview').hidden=true;$('#collection-loading').hidden=false;$('#collection-loading').textContent='正在整理完整案例图片…';$('#collection-pager').hidden=true;$('#copy-collection-image').disabled=true;$('#download-collection-image').disabled=true;
+ showDialog($('#collection-dialog'));
+ try{const renderer=await renderCollectionImages(report);if(ticket!==collectionTicket||!$('#collection-dialog').open)return;collectionSession.renderer=renderer;await showCollectionPage(0);}
+ catch(e){if(ticket===collectionTicket)$('#collection-loading').textContent=e.message||'图片生成失败，请重试。'}
+}
+async function showCollectionPage(index){
+ const session=collectionSession;if(!session?.renderer)return;const ticket=++collectionTicket;session.index=index;
+ if(collectionObjectUrl){URL.revokeObjectURL(collectionObjectUrl);collectionObjectUrl=''}
+ $('#collection-preview').hidden=true;$('#collection-preview').removeAttribute('src');$('#collection-loading').hidden=false;$('#collection-loading').textContent='正在生成第'+(index+1)+'张完整图片…';$('#copy-collection-image').disabled=true;$('#download-collection-image').disabled=true;
+ const total=session.renderer.total;$('#collection-pager').hidden=total<2;$('#collection-page').textContent=(index+1)+' / '+total;$('#collection-prev').disabled=index===0;$('#collection-next').disabled=index===total-1;
+ $('#copy-collection-image').textContent=total===1?'复制完整集锦图片':'复制第'+(index+1)+' / '+total+'张图片';
+ if(!session.images.has(index))session.images.set(index,session.renderer.render(index));
+ session.currentImage=session.images.get(index);
+ try{const blob=await session.currentImage;if(ticket!==collectionTicket||!$('#collection-dialog').open)return;collectionObjectUrl=URL.createObjectURL(blob);$('#collection-preview').src=collectionObjectUrl;$('#collection-preview').alt=session.report.store+' '+session.report.cycle+'文化案例完整集锦 第'+(index+1)+'/'+total+'张';$('#collection-preview').hidden=false;$('#collection-loading').hidden=true;$('#copy-collection-image').disabled=false;$('#download-collection-image').disabled=false;}
+ catch(e){if(ticket===collectionTicket)$('#collection-loading').textContent=e.message||'图片生成失败，请重试。'}
+}
+async function shareCollectionImage(copyImage=true){
+ const session=collectionSession;if(!session?.currentImage)return;
+ const image=session.currentImage,name='文化案例完整集锦_'+session.report.store+'_'+session.report.cycle+'_'+(session.index+1)+'.png';
+ try{
+  if(copyImage&&navigator.clipboard?.write&&typeof ClipboardItem!=='undefined'){
+   try{await navigator.clipboard.write([new ClipboardItem({'image/png':image})]);toast('集锦图片已复制，可直接粘贴给店总。');return}catch{}
+  }
+  downloadBlob(name,await image);toast(copyImage?'浏览器未允许复制图片，已下载PNG供你转发。':'当前集锦图片已下载。');
+ }catch(e){toast(e.message||'图片导出失败，请重试。')}
+}
+async function requestEdit(c){
+ if(editable(c)){await editCase(c,state.keys[c.id]);return;}
+ editLinkTarget=c;$('#case-edit-case-name').textContent=c.title+' · '+c.store;$('#case-edit-link').value='';$('#case-edit-error').textContent='';showDialog($('#case-edit-dialog'));
 }
 function reminderDeadline(){const saved=read('culture-reminder-deadlines-v1',{});return saved[state.cycle]??(state.cycle===nowMonth?shanghaiDay():'')}
 function renderReminder(){
@@ -161,10 +212,10 @@ async function shareAdviceImage(copyImage=true){
 function caseText(c){if(inspectSubmission(c.body,c.cycle).ok)return c.body;return [`店面：${c.store}`,`推荐主题：${c.theme}`,c.nominee?`被推荐人：${c.nominee}`:'',c.behavior?`对应文化行为点：${c.behavior}`:'',c.joined_on?`被推荐人入职时间：${c.joined_on}`:'',c.recommender?`推荐人：${c.recommender}`:'',c.author?`撰写人：${c.author}`:'',c.event_on?`事件发生日期：${c.event_on}`:'',`案例标题：${c.title}`,'',c.body].filter(v=>v!==null).join('\n');}
 function showDetail(c){
   if(!c)return;const a=analyze(c),t=themeOf(c.theme),info=[['被推荐人',c.nominee],['门店',c.store],['组别',c.team],['入职时间',c.joined_on],['发生日期',c.event_on],['推荐人',c.recommender],['撰写人',c.author]].filter(([,v])=>v);
-  $('#detail-content').innerHTML=`<span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><h2>${esc(c.title)}</h2><div class="detail-info">${info.map(([label,value])=>`<span>${label}：${esc(value)}</span>`).join('')}</div>${c.behavior?`<p class="muted">文化行为点：${esc(c.behavior)}</p>`:''}<div class="detail-body">${esc(c.body)}</div>${managerBlock(c)}${c.reference_note?`<p class="muted" style="margin-top:18px">可核实线索：${esc(c.reference_note)}</p>`:''}<section class="detail-score"><h3>文字初筛评分说明</h3>${scoreSummary(a)}${scoreExplanation(a)}</section><div class="review-block"><h4>对应正向准则与原文依据</h4>${a.standardEvidence.length?a.standardEvidence.map(x=>`<p>${esc(x.label)}</p><blockquote class="evidence-quote">${esc(x.evidence)}</blockquote>`).join(''):'<p>原文尚未找到足够具体的正向行动依据。</p>'}</div>${a.conflicts.length?`<div class="error-box">以下语句存在需核实的负向行为线索，暂不作事实认定：${a.conflicts.map(x=>`<p>${esc(x)}</p>`).join('')}</div>`:''}<div class="review-block"><h4>下一步修改建议</h4><ul>${a.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div><div class="detail-actions">${button('copy-case',c.id,'复制完整案例')}${button('advice-image',c.id,'给撰写人 / BP · 修改建议图')}${state.keys[c.id]?button('edit',c.id,'编辑我的案例 ↗')+button('copy-edit-link',c.id,'保存专属修改链接'):''}</div><p class="muted" style="font-size:10px;margin-top:17px">评选以价值观解读、正向行为和实际价值为依据。文本辅助初筛不代替事实核实与最终定奖。</p>`;
+  $('#detail-content').innerHTML=`<span class="theme-badge">${esc(t?.mark)} ${esc(c.theme)}</span><h2>${esc(c.title)}</h2><div class="detail-info">${info.map(([label,value])=>`<span>${label}：${esc(value)}</span>`).join('')}</div>${c.behavior?`<p class="muted">文化行为点：${esc(c.behavior)}</p>`:''}<div class="detail-body">${esc(c.body)}</div>${managerBlock(c)}${c.reference_note?`<p class="muted" style="margin-top:18px">可核实线索：${esc(c.reference_note)}</p>`:''}<section class="detail-score"><h3>文字初筛评分说明</h3>${scoreSummary(a)}${scoreExplanation(a)}</section><div class="review-block"><h4>对应正向准则与原文依据</h4>${a.standardEvidence.length?a.standardEvidence.map(x=>`<p>${esc(x.label)}</p><blockquote class="evidence-quote">${esc(x.evidence)}</blockquote>`).join(''):'<p>原文尚未找到足够具体的正向行动依据。</p>'}</div>${a.conflicts.length?`<div class="error-box">以下语句存在需核实的负向行为线索，暂不作事实认定：${a.conflicts.map(x=>`<p>${esc(x)}</p>`).join('')}</div>`:''}<div class="review-block"><h4>下一步修改建议</h4><ul>${a.suggestions.map(s=>`<li>${esc(s)}</li>`).join('')}</ul></div><div class="detail-actions">${button('copy-case',c.id,'复制完整案例')}${button('advice-image',c.id,'给撰写人 / BP · 修改建议图')}${button('edit',c.id,editable(c)?'修改本篇案例':'BP修改本篇案例')}${state.keys[c.id]?button('copy-edit-link',c.id,'复制修改链接给BP'):''}</div><p class="muted" style="font-size:10px;margin-top:17px">评选以价值观解读、正向行为和实际价值为依据。文本辅助初筛不代替事实核实与最终定奖。</p>`;
   showDialog($('#detail-dialog'));
 }
-async function editCase(c,token){if(!c)return;let d=drafts.find(x=>x.editId===c.id||x.savedId===c.id);if(!d){d=freshDraft();drafts.unshift(d)}Object.assign(d,{raw:caseText(c),managerReview:c.manager_review||'',cycle:c.cycle,editId:c.id,token,savedId:'',error:''});state.cycle=c.cycle;$('#cycle').value=state.cycle;campaign();renderDrafts();$('#detail-dialog').close();changeView('submit');saveDrafts();$('#input-'+d.localId).focus();}
+async function editCase(c,token){if(!c)return;let d=drafts.find(x=>x.editId===c.id||x.savedId===c.id);if(!d){d=freshDraft();drafts.unshift(d)}Object.assign(d,{raw:caseText(c),managerReview:c.manager_review||'',referenceNote:c.reference_note||'',wasEdit:true,cycle:c.cycle,editId:c.id,token,savedId:'',error:''});state.cycle=c.cycle;$('#cycle').value=state.cycle;campaign();renderDrafts();$('#detail-dialog').close();changeView('submit');saveDrafts();$('#input-'+d.localId).focus();}
 async function copy(text){try{await navigator.clipboard.writeText(text);toast('已复制，可直接粘贴分享。')}catch{const a=document.createElement('textarea');a.value=text;a.style.position='fixed';a.style.opacity='0';document.body.append(a);a.select();const ok=document.execCommand('copy');a.remove();toast(ok?'已复制，可直接粘贴分享。':'复制未成功，请重试。')}}
 function download(name,content,type){const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000)}
 function exportCases(selection=false){const data=selection?THEMES.flatMap(t=>recommend(state.cases,t.name,+$('#recommend-limit').value)).map(c=>({...c,assessment:analyze(c)})):filteredCases().map(c=>({...c,assessment:analyze(c)}));if(!data.length){toast('当前没有可导出的案例。');return}download(`文化案例_${state.cycle}_${selection?'评选参考':'案例库'}.json`,JSON.stringify({month:state.cycle,standard:'用户提供的价值观解读与行为准则',cases:data},null,2),'application/json;charset=utf-8')}
@@ -183,7 +234,7 @@ document.addEventListener('click',async event=>{
   const submit=event.target.closest('[data-submit-draft]');if(submit){await submitDraft(submit.dataset.submitDraft);return}
   const split=event.target.closest('[data-split-draft]');if(split){splitDraft(split.dataset.splitDraft);return}
   const topic=event.target.closest('[data-advice-theme]');if(topic){await showAdvice(recommend(state.cases,topic.dataset.adviceTheme,+$('#recommend-limit').value));return}
-  const action=event.target.closest('[data-action]');if(!action)return;const c=state.cases.find(c=>c.id===action.dataset.id)||drafts.find(d=>d.savedId===action.dataset.id)?.savedRecord;switch(action.dataset.action){case'new':changeView('submit');break;case'detail':showDetail(c);break;case'edit':await editCase(c,state.keys[c.id]);break;case'advice-image':if(c)await showAdvice([c]);break;case'copy-case':if(c)await copy(caseText(c)+(c.manager_review?.trim()?'\n\n店总评价：\n'+c.manager_review:''));break;case'copy-edit-link':if(c)await copy(modificationLink(c.id,state.keys[c.id]));break}
+  const action=event.target.closest('[data-action]');if(!action)return;const c=state.cases.find(c=>c.id===action.dataset.id)||drafts.find(d=>d.savedId===action.dataset.id)?.savedRecord;switch(action.dataset.action){case'new':changeView('submit');break;case'detail':showDetail(c);break;case'edit':if(c)await requestEdit(c);break;case'advice-image':if(c)await showAdvice([c]);break;case'copy-case':if(c)await copy(caseText(c)+(c.manager_review?.trim()?'\n\n店总评价：\n'+c.manager_review:''));break;case'copy-edit-link':if(c)await copy(modificationLink(c.id,state.keys[c.id]));break}
 });
 $$('.close-dialog').forEach(b=>b.addEventListener('click',()=>b.closest('dialog').close()));
 $$('dialog').forEach(d=>d.addEventListener('click',e=>{if(e.target===d){const r=d.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)d.close()}}));
@@ -192,6 +243,19 @@ $('#submission-list').addEventListener('input',event=>{
  const id=review?.dataset.managerReview||input.dataset.draftInput,d=drafts.find(d=>d.localId===id);if(!d||d.savedId)return;
  if(review)d.managerReview=review.value;else d.raw=input.value;
  d.error='';updateDraftCard(d);saveDrafts();
+});
+$('#open-store-collection').addEventListener('click',openCollectionImages);
+$('#copy-store-feedback').addEventListener('click',()=>copy($('#collection-feedback').value));
+$('#copy-collection-image').addEventListener('click',()=>shareCollectionImage(true));
+$('#download-collection-image').addEventListener('click',()=>shareCollectionImage(false));
+$('#collection-prev').addEventListener('click',()=>{if(collectionSession?.index>0)void showCollectionPage(collectionSession.index-1)});
+$('#collection-next').addEventListener('click',()=>{if(collectionSession&&collectionSession.index<collectionSession.renderer.total-1)void showCollectionPage(collectionSession.index+1)});
+$('#collection-dialog').addEventListener('close',()=>{if($('#collection-dialog').open)return;collectionTicket++;collectionSession=null;if(collectionObjectUrl){URL.revokeObjectURL(collectionObjectUrl);collectionObjectUrl=''}$('#collection-preview').removeAttribute('src')});
+$('#case-edit-form').addEventListener('submit',async event=>{
+ event.preventDefault();const parsed=parseModificationLink($('#case-edit-link').value);
+ if(!parsed){$('#case-edit-error').textContent='请粘贴完整的本篇修改链接。';return;}
+ if(parsed.id!==editLinkTarget?.id){$('#case-edit-error').textContent='这条链接对应其他案例，请向提交人核对本篇修改链接。';return;}
+ $('#case-edit-dialog').close();await editCase(editLinkTarget,parsed.token);
 });
 $('#copy-advice-image').addEventListener('click',()=>shareAdviceImage(true));
 $('#download-advice-image').addEventListener('click',()=>shareAdviceImage(false));
@@ -205,6 +269,6 @@ $('#copy-counts-image').addEventListener('click',()=>countsImage(true));
 $('#download-counts-image').addEventListener('click',()=>countsImage(false));
 $('#add-case').addEventListener('click',addDraft);$('#add-case-bottom').addEventListener('click',addDraft);$('#copy-counts').addEventListener('click',()=>copy(countsText()));
 $('#cycle').addEventListener('change',async()=>{if(!$('#cycle').value){$('#cycle').value=state.cycle;return}state.cycle=$('#cycle').value;state.cases=[];state.loaded=false;state.dataRevision++;drafts.filter(d=>!d.savedId&&!d.editId).forEach(d=>d.cycle=state.cycle);campaign();renderLibrary();renderSelection();renderCounts();await loadCases();saveDrafts();});
-$('#search').addEventListener('input',renderLibrary);$('#store-filter').addEventListener('change',renderLibrary);$('#sort').addEventListener('change',renderLibrary);$('#recommend-limit').addEventListener('change',renderSelection);$('#refresh').addEventListener('click',()=>loadCases());$('#share').addEventListener('click',share);$('#copy-link').addEventListener('click',()=>copy(shareLink()));$('#download-qr').addEventListener('click',()=>download('文化案例工作台_二维码.svg',qrSvg(shareLink()),'image/svg+xml'));$('#export').addEventListener('click',()=>exportCases());$('#selection-export').addEventListener('click',()=>exportCases(true));
+$('#search').addEventListener('input',renderLibrary);$('#store-filter').addEventListener('change',()=>{state.theme='';$('#search').value='';renderLibrary()});$('#sort').addEventListener('change',renderLibrary);$('#recommend-limit').addEventListener('change',renderSelection);$('#refresh').addEventListener('click',()=>loadCases());$('#share').addEventListener('click',share);$('#copy-link').addEventListener('click',()=>copy(shareLink()));$('#download-qr').addEventListener('click',()=>download('文化案例工作台_二维码.svg',qrSvg(shareLink()),'image/svg+xml'));$('#export').addEventListener('click',()=>exportCases());$('#selection-export').addEventListener('click',()=>exportCases(true));
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)loadCases({silent:true})});setInterval(()=>{if(!document.hidden&&!state.busy)loadCases({silent:true})},45000);
 init();
