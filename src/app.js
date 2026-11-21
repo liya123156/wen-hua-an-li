@@ -22,6 +22,8 @@ let drafts=[];
 let toastTimer,draftTimer;
 let adviceSession=null,adviceObjectUrl='',adviceTicket=0;
 let collectionSession=null,collectionObjectUrl='',collectionTicket=0,editLinkTarget=null;
+const feedbackDrafts=read('culture-store-feedback-v1',{});
+const feedbackKey=()=>state.cycle+'|'+$('#store-filter').value;
 function toast(message){$('#toast').textContent=message;$('#toast').classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').classList.remove('show'),4500)}
 function showDialog(el){if(!el.open)el.showModal()}
 function shareLink(){return `${CONFIG.siteUrl}/`}
@@ -103,7 +105,9 @@ function renderLibrary(){
  if(store){
   $('#store-collection-title').textContent=store+' · 本月文化案例集锦';
   $('#store-collection-scope').textContent=state.loaded?`集锦范围：${state.cycle.replace('-','年')}月 · 本店全部${report.total}篇 · 包含完整原文、评分和店总评价`:'正在读取本店当月案例…';
-  $('#collection-feedback').value=state.loaded?storeFeedback(report):'';
+  const feedback=state.loaded?(feedbackDrafts[feedbackKey()]??storeFeedback(report)):'';if($('#collection-feedback').value!==feedback)$('#collection-feedback').value=feedback;$('#collection-feedback').disabled=!state.loaded;
+  $('#feedback-edit-hint').textContent=Object.hasOwn(feedbackDrafts,feedbackKey())?'已保留本机编辑内容；需要更新案例名单时，可重新生成。':'话术可直接编辑；请手动补充全司月会获奖情况，修改后会保留在当前浏览器。';
+  $('#regenerate-store-feedback').disabled=!state.loaded;
   $('#collection-feedback').placeholder='同步数据后生成本月收集结论。';
   $('#open-store-collection').disabled=!state.loaded;$('#copy-store-feedback').disabled=!state.loaded;
  }
@@ -111,25 +115,29 @@ function renderLibrary(){
 }
 async function openCollectionImages(){
  if(!state.loaded||!$('#store-filter').value)return;
- const ticket=++collectionTicket,report=currentStoreCollection();
+ collectionSession={report:currentStoreCollection(),image:null};$('#collection-layout').value='auto';
+ showDialog($('#collection-dialog'));await updateCollectionImage();
+}
+async function updateCollectionImage(){
+ const session=collectionSession;if(!session)return;
+ const ticket=++collectionTicket,report=session.report;
  if(collectionObjectUrl){URL.revokeObjectURL(collectionObjectUrl);collectionObjectUrl=''}
- const session={report,image:null};collectionSession=session;
- $('#collection-dialog-title').textContent=report.store+' · 本月案例集锦';$('#collection-dialog-scope').textContent=report.cycle.replace('-','年')+'月 · 本店全部'+report.total+'篇合在一张长图 · 完整原文、评分与店总评价';
- $('#collection-preview').hidden=true;$('#collection-preview').removeAttribute('src');$('#collection-loading').hidden=false;$('#collection-loading').textContent='正在将本店全部案例合成一张完整长图…';$('#copy-collection-image').disabled=true;$('#download-collection-image').disabled=true;
- showDialog($('#collection-dialog'));
- session.image=renderCollectionImage(report);
- try{const blob=await session.image;if(ticket!==collectionTicket||!$('#collection-dialog').open)return;collectionObjectUrl=URL.createObjectURL(blob);$('#collection-preview').src=collectionObjectUrl;$('#collection-preview').alt=report.store+' '+report.cycle+'全部'+report.total+'篇案例合成一张完整长图';$('#collection-preview').hidden=false;$('#collection-loading').hidden=true;$('#copy-collection-image').disabled=false;$('#download-collection-image').disabled=false;}
- catch(e){if(ticket===collectionTicket)$('#collection-loading').textContent=e.message||'长图生成失败，请重试。'}
+ $('#collection-dialog-title').textContent=report.store+' · 本月案例集锦';$('#collection-dialog-scope').textContent=report.cycle.replace('-','年')+'月 · 本店全部'+report.total+'篇合在一张分列集锦 · 完整原文、评分与店总评价';
+ const preview=$('#collection-preview');preview.style.width='100%';preview.hidden=true;preview.removeAttribute('src');$('#collection-zoom').textContent='放大阅读';$('#collection-zoom').disabled=true;
+ $('#collection-loading').hidden=false;$('#collection-loading').textContent='正在按篇幅分列整理完整案例…';$('#copy-collection-image').disabled=true;$('#download-collection-image').disabled=true;
+ session.image=renderCollectionImage(report,{columns:$('#collection-layout').value});
+ try{const blob=await session.image;if(ticket!==collectionTicket||!$('#collection-dialog').open)return;collectionObjectUrl=URL.createObjectURL(blob);preview.src=collectionObjectUrl;preview.alt=report.store+' '+report.cycle+'全部'+report.total+'篇案例分列合成的完整集锦';preview.hidden=false;$('#collection-loading').hidden=true;$('#copy-collection-image').disabled=false;$('#download-collection-image').disabled=false;$('#collection-zoom').disabled=false;}
+ catch(e){if(ticket===collectionTicket)$('#collection-loading').textContent=e.message||'集锦生成失败，请重试。'}
 }
 async function shareCollectionImage(copyImage=true){
  const session=collectionSession;if(!session?.image)return;
  const image=session.image,name='文化案例完整集锦_'+session.report.store+'_'+session.report.cycle+'.png';
  try{
   if(copyImage&&navigator.clipboard?.write&&typeof ClipboardItem!=='undefined'){
-   try{await navigator.clipboard.write([new ClipboardItem({'image/png':image})]);toast('本店全部案例长图已复制，可直接粘贴给店总。');return}catch{}
+   try{await navigator.clipboard.write([new ClipboardItem({'image/png':image})]);toast('本店分列集锦已复制，可直接粘贴给店总。');return}catch{}
   }
-  downloadBlob(name,await image);toast(copyImage?'浏览器未允许复制图片，完整长图已下载，可直接转发。':'本店全部案例长图已下载。');
- }catch(e){toast(e.message||'长图导出失败，请重试。')}
+  downloadBlob(name,await image);toast(copyImage?'浏览器未允许复制图片，完整集锦已下载，可直接转发。':'本店分列集锦已下载。');
+ }catch(e){toast(e.message||'集锦导出失败，请重试。')}
 }
 async function requestEdit(c){
  if(editable(c)){await editCase(c,state.keys[c.id]);return;}
@@ -236,6 +244,10 @@ $('#submission-list').addEventListener('input',event=>{
  d.error='';updateDraftCard(d);saveDrafts();
 });
 $('#open-store-collection').addEventListener('click',openCollectionImages);
+$('#collection-feedback').addEventListener('input',()=>{if(!$('#store-filter').value)return;feedbackDrafts[feedbackKey()]=$('#collection-feedback').value;write('culture-store-feedback-v1',feedbackDrafts);$('#feedback-edit-hint').textContent='修改已保留在当前浏览器，可复制发给店总。'});
+$('#regenerate-store-feedback').addEventListener('click',()=>{delete feedbackDrafts[feedbackKey()];write('culture-store-feedback-v1',feedbackDrafts);renderLibrary();toast('已按本店最新案例重新生成话术，请核对并补充全司月会获奖情况。')});
+$('#collection-layout').addEventListener('change',()=>updateCollectionImage());
+$('#collection-zoom').addEventListener('click',()=>{const preview=$('#collection-preview'),zoomed=preview.style.width!=='100%';preview.style.width=zoomed?'100%':Math.max(preview.parentElement.clientWidth,preview.naturalWidth/1.5)+'px';$('#collection-zoom').textContent=zoomed?'放大阅读':'适应窗口'});
 $('#copy-store-feedback').addEventListener('click',()=>copy($('#collection-feedback').value));
 $('#copy-collection-image').addEventListener('click',()=>shareCollectionImage(true));
 $('#download-collection-image').addEventListener('click',()=>shareCollectionImage(false));

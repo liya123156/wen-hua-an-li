@@ -91,3 +91,8 @@
 .case-edit-dialog{width:min(580px,calc(100vw - 30px));padding:30px;border-radius:20px}.case-edit-dialog h2{font-size:1.3125rem;line-height:1.7;color:#72508a;margin-right:20px}.case-edit-dialog>p{font-size:1rem;line-height:1.9;color:#7b6589}.case-edit-dialog form label{display:block;font-size:1rem;margin-bottom:11px;color:#78578e}.case-edit-dialog form input{font-size:1rem;padding:14px}.case-edit-dialog .muted{font-size:.875rem;margin-top:18px}.submission-card-footer>div{display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end}
 
 .collection-dialog .advice-image-stage{max-height:56vh;overflow-y:auto;overscroll-behavior:contain}
+
+.collection-dialog{width:min(1160px,calc(100vw - 32px))}
+.collection-layout-tools{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:10px 0 16px}.collection-layout-tools label{font-size:1rem;color:#79588e;font-weight:600}.collection-layout-tools select{width:180px;min-height:42px;font-size:1rem;padding:10px 32px 10px 13px}.collection-layout-tools .button{margin-left:auto;font-size:.9375rem;min-height:42px}
+.collection-dialog .advice-image-stage{max-height:52vh;overflow:auto}.collection-dialog .advice-image-stage img{max-width:none}.feedback-edit-hint{font-size:.875rem;line-height:1.8;color:#8b7297;margin:12px 0}.store-feedback>#regenerate-store-feedback{font-size:.875rem}
+@media(max-width:700px){.collection-layout-tools{gap:10px}.collection-layout-tools select{width:145px}.collection-layout-tools .button{font-size:.875rem}.collection-dialog .advice-image-stage{max-height:46vh}}
